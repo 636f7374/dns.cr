@@ -11,8 +11,8 @@ dns_servers << DNS::Resolver::Address.new ipAddress: Socket::IPAddress.new("8.8.
 dns_resolver = DNS::Resolver.new dnsServers: dns_servers, options: DNS::Resolver::Options.new
 
 concurrent_mutex = Mutex.new :unchecked
-concurrent_fibers = [] of Fiber
-reply_packets = [] of Tuple(String, Time::Span, Tuple(DNS::FetchType, Array(DNS::Packet)))
+concurrent_fibers = Set(Fiber).new
+reply_packets = Set(Tuple(String, Time::Span, Tuple(DNS::FetchType, Array(DNS::Packet)))).new
 
 google_query_fiber = spawn do
   before = Time.local

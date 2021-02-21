@@ -97,7 +97,7 @@ class DNS::Resolver
 
   private def concurrent_getaddrinfo_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
     concurrent_mutex = Mutex.new :unchecked
-    concurrent_fibers = [] of Fiber
+    concurrent_fibers = Set(Fiber).new
     reply_packets = [] of Array(Packet)
 
     ipv4_query_fiber = spawn do
@@ -160,7 +160,7 @@ class DNS::Resolver
 
   private def concurrent_resolve(dns_servers : Set(Address), ask_packet : Packet) : Array(Packet)
     concurrent_mutex = Mutex.new :unchecked
-    concurrent_fibers = [] of Fiber
+    concurrent_fibers = Set(Fiber).new
     reply_packets = [] of Packet
 
     dns_servers.each do |dns_server|

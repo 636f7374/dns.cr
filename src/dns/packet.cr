@@ -177,17 +177,17 @@ struct DNS::Packet
   property! answerCount : UInt16
   property! authorityCount : UInt16
   property! additionalCount : UInt16
-  property queries : Array(Sections::Question)
-  property answers : Array(Records)
-  property authority : Array(Records)
-  property additional : Array(Records)
+  property queries : Set(Sections::Question)
+  property answers : Set(Records)
+  property authority : Set(Records)
+  property additional : Set(Records)
   property! buffer : IO::Memory
 
   def initialize(@arType : ARType, @protocolType : ProtocolType)
-    @queries = [] of Sections::Question
-    @answers = [] of Records
-    @authority = [] of Records
-    @additional = [] of Records
+    @queries = Set(Sections::Question).new
+    @answers = Set(Records).new
+    @authority = Set(Records).new
+    @additional = Set(Records).new
   end
 
   def check_error(ar_type : ARType, transmission_id : UInt16) : Bool
@@ -391,10 +391,10 @@ struct DNS::Packet
       if answer.is_a? Records::{{record_type.upcase.id}}
         selected = answers.select { |answer| (name == answer.name) && answer.is_a?(Records::{{record_type.upcase.id}}) }
 
-        temporary = [] of Records::{{record_type.upcase.id}}
+        temporary = Set(Records::{{record_type.upcase.id}}).new
         selected.each { |item| temporary << item if item.is_a? Records::{{record_type.upcase.id}} }
 
-        return temporary
+        return temporary.to_a
       end
     end
 

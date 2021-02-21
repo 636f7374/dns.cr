@@ -39,17 +39,17 @@ module DNS::Caching
         entries[host] = entry
 
         {% begin %}
-      	  case record_type
-      	    {% for available_type in AvailableRecordFlags %}
-      	  when .{{available_type.downcase.id}}?
-      	    return if entry.{{available_type.downcase.id}}.empty?
+          case record_type
+            {% for available_type in AvailableRecordFlags %}
+          when .{{available_type.downcase.id}}?
+            return if entry.{{available_type.downcase.id}}.empty?
 
             temporary = [] of DNS::Packet
             entry.{{available_type.downcase.id}}.each { |item| temporary << item }
             temporary
-      	    {% end %}
-      	  end
-      	{% end %}
+            {% end %}
+          end
+        {% end %}
       end
     end
 
@@ -72,13 +72,13 @@ module DNS::Caching
         entry = entries[host]? || Entry.new
 
         {% begin %}
-      	  case record_type
-      	    {% for available_type in AvailableRecordFlags %}
-      	  when .{{available_type.downcase.id}}?
-      	    entry.{{available_type.downcase.id}} = packets
-      	    {% end %}
-      	  end
-      	{% end %}
+          case record_type
+            {% for available_type in AvailableRecordFlags %}
+          when .{{available_type.downcase.id}}?
+            entry.{{available_type.downcase.id}} = packets
+            {% end %}
+          end
+        {% end %}
 
         entries[host] = entry
       end
@@ -135,11 +135,11 @@ module DNS::Caching
 
       {% for record_type in AvailableRecordFlags %}
       def {{record_type.downcase.id}}=(value : Set(DNS::Packet))
-      	@{{record_type.downcase.id}} = value
+        @{{record_type.downcase.id}} = value
       end
 
       def {{record_type.downcase.id}} : Set(DNS::Packet)
-      	@{{record_type.downcase.id}} ||= Set(DNS::Packet).new
+        @{{record_type.downcase.id}} ||= Set(DNS::Packet).new
       end
       {% end %}
 

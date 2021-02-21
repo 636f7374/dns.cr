@@ -11,26 +11,26 @@ dns_servers << DNS::Resolver::Address.new ipAddress: Socket::IPAddress.new("8.8.
 dns_resolver = DNS::Resolver.new dnsServers: dns_servers, options: DNS::Resolver::Options.new
 
 concurrent_mutex = Mutex.new :unchecked
-concurrent_fibers = [] of Fiber
-reply_packets = [] of Tuple(String, Time::Span, Tuple(DNS::FetchType, Array(Socket::IPAddress)))
+concurrent_fibers = Set(Fiber).new
+reply_packets = Set(Tuple(String, Time::Span, Tuple(DNS::FetchType, Array(Socket::IPAddress)))).new
 
-crystal_query_fiber = spawn do
+rust_query_fiber = spawn do
   before = Time.local
   packets = dns_resolver.getaddrinfo host: "rust-lang.org", port: 443_i32
   after = Time.local
   concurrent_mutex.synchronize { reply_packets << Tuple.new "rust-lang.org", (after - before), packets }
 end
 
-concurrent_mutex.synchronize { concurrent_fibers << crystal_query_fiber }
+concurrent_mutex.synchronize { concurrent_fibers << rust_query_fiber }
 
-rust_query_fiber = spawn do
+crystal_query_fiber = spawn do
   before = Time.local
   packets = dns_resolver.getaddrinfo host: "crystal-lang.org", port: 443_i32
   after = Time.local
   concurrent_mutex.synchronize { reply_packets << Tuple.new "crystal-lang.org", (after - before), packets }
 end
 
-concurrent_mutex.synchronize { concurrent_fibers << rust_query_fiber }
+concurrent_mutex.synchronize { concurrent_fibers << crystal_query_fiber }
 
 github_query_fiber = spawn do
   before = Time.local

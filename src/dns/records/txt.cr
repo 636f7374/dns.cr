@@ -33,10 +33,15 @@ struct DNS::Records
       begin
         temporary = IO::Memory.new length
         copy_length = IO.copy io, temporary, length
-        buffer.write temporary.to_slice[0_i32, copy_length]
         temporary.rewind
       rescue ex
         raise Exception.new String.build { |io| io << "TXT.read_data_length_buffer!: Because: (" << ex.message << ")." }
+      end
+
+      begin
+        buffer.write temporary.to_slice
+      rescue ex
+        raise Exception.new String.build { |io| io << "TXT.read_data_length_buffer!: Writing to the buffer failed, Because: (" << ex.message << ")." }
       end
 
       temporary

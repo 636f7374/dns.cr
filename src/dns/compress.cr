@@ -13,7 +13,7 @@ module DNS::Compress
     Successed        = 3_u8
   end
 
-  def self.decode!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, add_transmission_id_offset : Bool = false) : String
+  def self.decode!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, add_length_offset : Bool = false) : String
     offset_buffer = uninitialized UInt8[1_i32]
     temporary = IO::Memory.new
 
@@ -36,10 +36,10 @@ module DNS::Compress
     before_buffer_pos = buffer.pos
     buffer.write temporary.to_slice
 
-    depth_decode_by_pointer! protocol_type: protocol_type, buffer: buffer, offset: before_buffer_pos, maximum_depth: maximum_depth, add_transmission_id_offset: add_transmission_id_offset
+    depth_decode_by_pointer! protocol_type: protocol_type, buffer: buffer, offset: before_buffer_pos, maximum_depth: maximum_depth, add_length_offset: add_length_offset
   end
 
-  def self.decode_by_pointer!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, allow_empty : Bool = false) : String
+  def self.decode_by_pointer!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, allow_empty : Bool = false, add_length_offset : Bool = true) : String
     pointer_header_buffer = uninitialized UInt8[1_i32]
     read_length = io.read pointer_header_buffer.to_slice
     raise Exception.new "Compress.decode_by_pointer!: Failed to read 1 Bytes from IO, The pointer header is 1 Bytes." if 1_i32 != read_length
@@ -56,13 +56,14 @@ module DNS::Compress
 
     offset = pointer_offset_buffer.to_slice[0_i32]
     offset = ((pointer_flag - 0b11000000).to_i32 << 8_u8) | offset
+    offset += 2_i32 if add_length_offset if protocol_type.tcp? || protocol_type.tls?
     raise Exception.new "Compress.decode_by_pointer!: Decoding failed or the offset value is zero!" if offset.zero?
     raise Exception.new "Compress.decode_by_pointer!: The offset value is greater than the buffer size, Offset index out Of bounds!" if offset > buffer.size
 
-    depth_decode_by_pointer! protocol_type: protocol_type, buffer: buffer, offset: offset, maximum_depth: maximum_depth
+    depth_decode_by_pointer! protocol_type: protocol_type, buffer: buffer, offset: offset, maximum_depth: maximum_depth, add_length_offset: add_length_offset
   end
 
-  def self.decode_by_length!(protocol_type : ProtocolType, io : IO, length : UInt16, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, maximum_length : UInt16 = 512_u16) : String
+  def self.decode_by_length!(protocol_type : ProtocolType, io : IO, length : UInt16, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, maximum_length : UInt16 = 512_u16, add_length_offset : Bool = true) : String
     raise Exception.new String.build { |io| io << "Compress.decode_by_length!: The length (" << length << ") to be read is greater than the maximum preset value (" << maximum_length << ")." } if length > maximum_length
 
     begin
@@ -81,7 +82,7 @@ module DNS::Compress
       raise Exception.new String.build { |io| io << "Compress.decode_by_length!: Because: (" << ex.message << ")." }
     end
 
-    depth_decode_by_pointer! protocol_type: protocol_type, buffer: buffer, offset: before_buffer_pos, maximum_depth: maximum_depth, add_transmission_id_offset: true
+    depth_decode_by_pointer! protocol_type: protocol_type, buffer: buffer, offset: before_buffer_pos, maximum_depth: maximum_depth, add_length_offset: add_length_offset
   end
 
   def self.encode_chunk_string(io : IO, value : String)
@@ -98,12 +99,11 @@ module DNS::Compress
     io.write Bytes[0_i32]
   end
 
-  private def self.depth_decode_by_pointer!(protocol_type : ProtocolType, buffer : IO::Memory, offset : Int, maximum_depth : Int32 = 65_i32, add_transmission_id_offset : Bool = false) : String
+  private def self.depth_decode_by_pointer!(protocol_type : ProtocolType, buffer : IO::Memory, offset : Int, maximum_depth : Int32 = 65_i32, add_length_offset : Bool = false) : String
     before_buffer_pos = buffer.pos
     buffer.pos = offset
-    buffer.pos += 2_i32 unless add_transmission_id_offset if protocol_type.tcp? || protocol_type.tls?
 
-    chunk_list = [] of Array(String)
+    chunk_list = Set(Set(String)).new
     depth = maximum_depth.dup
 
     while !(depth -= 1_i32).zero?
@@ -112,10 +112,13 @@ module DNS::Compress
 
       if flag.successed?
         buffer.pos = before_buffer_pos
-        return chunk_list.flatten.join "."
+        return chunk_list.map(&.to_a).flatten.join "."
       end
 
-      next update_chunk_pointer_position protocol_type: protocol_type, buffer: buffer, chunk_length: chunk_length if flag.pointer?
+      if flag.pointer?
+        next update_chunk_pointer_position protocol_type: protocol_type, buffer: buffer, chunk_length: chunk_length, add_length_offset: add_length_offset
+      end
+
       buffer.pos = before_buffer_pos
 
       break
@@ -124,8 +127,8 @@ module DNS::Compress
     raise Exception.new String.build { |io| io << "Compress.depth_decode_by_pointer!: After " << maximum_depth << " attempts to decode the chunk, it still fails, and the chunk depth exceeds the preset value!" }
   end
 
-  private def self.decode_chunk(buffer : IO::Memory) : Tuple(ChunkFlag, Array(String), UInt8)
-    chunk_parts = [] of String
+  private def self.decode_chunk(buffer : IO::Memory) : Tuple(ChunkFlag, Set(String), UInt8)
+    chunk_parts = Set(String).new
 
     loop do
       chunk_length_buffer = uninitialized UInt8[1_i32]
@@ -153,7 +156,7 @@ module DNS::Compress
     Tuple.new ChunkFlag::Successed, chunk_parts, 0_u8
   end
 
-  private def self.update_chunk_pointer_position(protocol_type : ProtocolType, buffer : IO::Memory, chunk_length : UInt8, add_transmission_id_offset : Bool = false)
+  private def self.update_chunk_pointer_position(protocol_type : ProtocolType, buffer : IO::Memory, chunk_length : UInt8, add_length_offset : Bool = false)
     offset_buffer = uninitialized UInt8[1_i32]
     read_length = buffer.read offset_buffer.to_slice
     return PointerFlag::BadLength if 1_i32 != read_length
@@ -172,7 +175,7 @@ module DNS::Compress
 
     before_buffer_pos = buffer.pos
     buffer.pos = offset
-    buffer.pos += 2_i32 unless add_transmission_id_offset if protocol_type.tcp? || protocol_type.tls?
+    buffer.pos += 2_i32 if add_length_offset if protocol_type.tcp? || protocol_type.tls?
 
     PointerFlag::Successed
   end
