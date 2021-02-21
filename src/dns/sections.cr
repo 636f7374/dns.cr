@@ -2,7 +2,7 @@ module DNS::Sections
   {% for section in ["additional", "answer", "authority"] %}
   struct {{section.capitalize.id}}
     def self.from_io(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : Records
-      name = decode_name! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth, add_length_offset: true
+      name = decode_name! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth
       record_type = read_record_type! io: io
       set_buffer! buffer: buffer, record_type: record_type
 
@@ -18,9 +18,9 @@ module DNS::Sections
       {% end %}
     end
 
-    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, add_length_offset : Bool = true) : String
+    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : String
       begin
-        Compress.decode_by_pointer! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth, allow_empty: true, add_length_offset: add_length_offset
+        Compress.decode_by_pointer! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth, allow_empty: true
       rescue ex
         raise Exception.new String.build { |io| io << {{section.capitalize.id.stringify}} << ".decode_name!: Compress.decode_by_pointer! failed, Because: (" << ex.message << ")." }
       end

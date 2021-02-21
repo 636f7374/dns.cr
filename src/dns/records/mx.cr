@@ -14,7 +14,7 @@ struct DNS::Records
       preference = read_preference! io: io
 
       set_buffer! buffer: buffer, class_type: class_type, ttl: ttl, data_length: data_length, preference: preference
-      mail_exchange = decode_name! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth, add_length_offset: true
+      mail_exchange = decode_name! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth
 
       new name: name, classType: class_type, ttl: ttl.seconds, mailExchange: mail_exchange, preference: preference
     end
@@ -37,9 +37,9 @@ struct DNS::Records
       end
     end
 
-    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, add_length_offset : Bool = true) : String
+    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : String
       begin
-        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth, add_length_offset: add_length_offset
+        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth
       rescue ex
         raise Exception.new String.build { |io| io << "MX.decode_name!: Compress.decode! failed, Because: (" << ex.message << ")." }
       end

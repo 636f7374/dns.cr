@@ -8,7 +8,7 @@ module DNS::Sections
     end
 
     def self.from_io(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : Question
-      name = decode_name! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth, add_length_offset: false
+      name = decode_name! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth
       record_type, class_type = read_types! io: io
       set_buffer! buffer: buffer, record_type: record_type, class_type: class_type
       question = new recordType: record_type, name: name, classType: class_type
@@ -25,9 +25,9 @@ module DNS::Sections
       io
     end
 
-    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, add_length_offset : Bool = false) : String
+    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : String
       begin
-        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth, add_length_offset: add_length_offset
+        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth
       rescue ex
         raise Exception.new String.build { |io| io << "Question.decode_name!: Compress.decode! failed, Because: (" << ex.message << ")." }
       end
