@@ -280,7 +280,7 @@ class DNS::Resolver
     buffer = uninitialized UInt8[4096_i32]
     socket.send ask_packet.to_slice
 
-    options.addrinfo.mismatchReceivedRetryTimes.times do
+    options.addrinfo.maximumNumberOfMismatchRetries.times do
       received_length, ip_address = socket.receive buffer.to_slice rescue nil
       next unless received_length
 
