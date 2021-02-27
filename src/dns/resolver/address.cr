@@ -24,17 +24,12 @@ class DNS::Resolver
 
         Tuple.new nil, socket
       in .tls?
+        openssl_context = OpenSSL::SSL::Context::Client.new
+        tls.try &.options.each { |option| openssl_context.add_options options: option }
+
         socket = TCPSocket.new ip_address: ipAddress, connect_timeout: timeout.connect
         socket.read_timeout = timeout.read
         socket.write_timeout = timeout.write
-
-        begin
-          openssl_context = OpenSSL::SSL::Context::Client.new
-        rescue ex
-          socket.close rescue nil
-
-          raise ex
-        end
 
         begin
           tls_socket = OpenSSL::SSL::Socket::Client.new socket, context: openssl_context, sync_close: true, hostname: tls.try &.hostname
@@ -53,8 +48,9 @@ class DNS::Resolver
 
     struct TransportLayerSecurity
       property hostname : String?
+      property options : Set(LibSSL::Options)
 
-      def initialize(@hostname : String? = nil)
+      def initialize(@hostname : String? = nil, @options : Set(LibSSL::Options) = Set(LibSSL::Options).new)
       end
     end
   end

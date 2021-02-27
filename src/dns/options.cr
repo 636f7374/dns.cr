@@ -2,9 +2,7 @@ struct DNS::Options
   property socket : Socket
   property addrinfo : Addrinfo
 
-  def initialize
-    @socket = Socket.new
-    @addrinfo = Addrinfo.new
+  def initialize(@socket : Socket = Socket.new, @addrinfo : Addrinfo = Addrinfo.new)
   end
 
   struct Socket
