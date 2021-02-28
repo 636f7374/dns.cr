@@ -176,8 +176,15 @@ class DNS::Resolver
         case socket
         when UDPSocket
           reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
-          socket.close rescue nil
 
+          unless reply
+            options.addrinfo.maximumNumberOfMismatchRetries.times do
+              reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
+              break if reply
+            end
+          end
+
+          socket.close rescue nil
           next unless reply
           concurrent_mutex.synchronize { reply_packets << reply }
         when TCPSocket, OpenSSL::SSL::Socket::Client
@@ -237,8 +244,15 @@ class DNS::Resolver
       case socket
       when UDPSocket
         reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
-        socket.close rescue nil
 
+        unless reply
+          options.addrinfo.maximumNumberOfMismatchRetries.times do
+            reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
+            break if reply
+          end
+        end
+
+        socket.close rescue nil
         next unless reply
         reply_packets << reply
       when TCPSocket, OpenSSL::SSL::Socket::Client
@@ -280,21 +294,17 @@ class DNS::Resolver
     buffer = uninitialized UInt8[4096_i32]
     socket.send ask_packet.to_slice
 
-    options.addrinfo.maximumNumberOfMismatchRetries.times do
-      received_length, ip_address = socket.receive buffer.to_slice rescue nil
-      next unless received_length
+    received_length, ip_address = socket.receive buffer.to_slice
+    raise Exception.new "Resolver.resolve!: DNS query failed, zero bytes have been received!" if received_length.zero?
 
-      memory = IO::Memory.new buffer.to_slice[0_i32, received_length]
-      reply = Packet.from_io protocol_type: protocol_type, io: memory
-      next unless reply
-      raise Exception.new String.build { |io| io << "Resolver.resolve!: DNS query failed, Possibly because the server is not responding!" } unless reply.arType.reply?
-      next if ask_packet.transmissionId != reply.transmissionId
-      next unless reply.errorType.no_error?
+    memory = IO::Memory.new buffer.to_slice[0_i32, received_length]
+    reply = Packet.from_io protocol_type: protocol_type, io: memory
 
-      return reply
-    end
+    raise Exception.new String.build { |io| io << "Resolver.resolve!: DNS query failed, Possibly because the server is not responding!" } unless reply.arType.reply?
+    raise Exception.new String.build { |io| io << "Resolver.resolve!: The transmissionId of the reply packet does not match the ask transmissionId!" } if ask_packet.transmissionId != reply.transmissionId
+    raise Exception.new String.build { |io| io << "Resolver.resolve!: The errorType of the reply packet is not Packet::ErrorFlag::NoError!" } unless reply.errorType.no_error?
 
-    raise Exception.new "Resolver.resolve!: DNS query failed, Possibly because the server is not responding!"
+    reply
   end
 
   private def resolve!(socket : TCPSocket | OpenSSL::SSL::Socket::Client, ask_packet : Packet, protocol_type : ProtocolType) : Packet
@@ -302,6 +312,8 @@ class DNS::Resolver
     socket.write ask_packet.to_slice
 
     read_length = socket.read buffer.to_slice
+    raise Exception.new "Resolver.resolve!: DNS query failed, zero bytes have been read!" if read_length.zero?
+
     memory = IO::Memory.new buffer.to_slice[0_i32, read_length]
     reply = Packet.from_io protocol_type: protocol_type, io: memory
     raise Exception.new String.build { |io| io << "Resolver.resolve!: DNS query failed, Possibly because the server is not responding!" } unless reply
