@@ -42,4 +42,4 @@ options:
     maximumCanonicalNameDepth: 64)
 
 serialization = DNS::Serialization::Resolver.from_yaml text
-STDOUT.puts [serialization.unwrap_all]
+STDOUT.puts [serialization.unwrap]

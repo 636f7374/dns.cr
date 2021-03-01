@@ -9,8 +9,8 @@ module DNS::Serialization
     def initialize(@servers : Array(Address) = [Address.new] of Address, @caching : Caching = Caching.new, @options : Options = Options.new)
     end
 
-    def unwrap_all : Tuple(Set(DNS::Resolver::Address), DNS::Caching::IPAddress, DNS::Options)
-      Tuple.new unwrap_servers, unwrap_caching_ip_address, unwrap_options
+    def unwrap : DNS::Resolver
+      DNS::Resolver.new dnsServers: unwrap_servers, options: unwrap_options, ipAddressCaching: unwrap_caching_ip_address, packetCaching: unwrap_caching_packet
     end
 
     def unwrap_servers : Set(DNS::Resolver::Address)

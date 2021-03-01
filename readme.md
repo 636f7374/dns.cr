@@ -26,7 +26,7 @@
 * [X] Caching
 * [X] UDP
 * [X] TCP
-* [X] TLS (DoH)
+* [X] TLS (DoT)
 
 ## Usage
 
