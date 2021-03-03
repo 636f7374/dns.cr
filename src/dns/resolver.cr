@@ -98,11 +98,12 @@ class DNS::Resolver
   private def concurrent_getaddrinfo_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
     concurrent_mutex = Mutex.new :unchecked
     concurrent_fibers = Set(Fiber).new
+    reply_mutex = Mutex.new :unchecked
     reply_packets = [] of Array(Packet)
 
     ipv4_query_fiber = spawn do
       ipv4_packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
-      concurrent_mutex.synchronize { reply_packets << ipv4_packets }
+      reply_mutex.synchronize { reply_packets << ipv4_packets }
     end
 
     concurrent_mutex.synchronize { concurrent_fibers << ipv4_query_fiber }
@@ -110,7 +111,7 @@ class DNS::Resolver
     ipv6_query_fiber = spawn do
       next unless options.addrinfo.queryIpv6
       ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
-      concurrent_mutex.synchronize { reply_packets << ipv6_packets }
+      reply_mutex.synchronize { reply_packets << ipv6_packets }
     end
 
     concurrent_mutex.synchronize { concurrent_fibers << ipv6_query_fiber }
@@ -161,6 +162,7 @@ class DNS::Resolver
   private def concurrent_resolve(dns_servers : Set(Address), ask_packet : Packet) : Array(Packet)
     concurrent_mutex = Mutex.new :unchecked
     concurrent_fibers = Set(Fiber).new
+    reply_mutex = Mutex.new :unchecked
     reply_packets = [] of Packet
 
     dns_servers.each do |dns_server|
@@ -210,7 +212,7 @@ class DNS::Resolver
           end
 
           next unless reply
-          concurrent_mutex.synchronize { reply_packets << reply }
+          reply_mutex.synchronize { reply_packets << reply }
         else
           tls_context.try &.skip_finalize = true
           tls_context.try &.free
