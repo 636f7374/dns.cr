@@ -103,7 +103,7 @@ module DNS::Compress
     before_buffer_pos = buffer.pos
     buffer.pos = offset
 
-    chunk_list = Set(Set(String)).new
+    chunk_list = [] of Array(String)
     depth = maximum_depth.dup
 
     while !(depth -= 1_i32).zero?
@@ -112,7 +112,7 @@ module DNS::Compress
 
       if flag.successed?
         buffer.pos = before_buffer_pos
-        return chunk_list.map(&.to_a).flatten.join "."
+        return chunk_list.flatten.join "."
       end
 
       if flag.pointer?
@@ -127,8 +127,8 @@ module DNS::Compress
     raise Exception.new String.build { |io| io << "Compress.depth_decode_by_pointer!: After " << maximum_depth << " attempts to decode the chunk, it still fails, and the chunk depth exceeds the preset value!" }
   end
 
-  private def self.decode_chunk(buffer : IO::Memory) : Tuple(ChunkFlag, Set(String), UInt8)
-    chunk_parts = Set(String).new
+  private def self.decode_chunk(buffer : IO::Memory) : Tuple(ChunkFlag, Array(String), UInt8)
+    chunk_parts = [] of String
 
     loop do
       chunk_length_buffer = uninitialized UInt8[1_i32]

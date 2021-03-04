@@ -422,11 +422,7 @@ struct DNS::Packet
       end
     end
 
-    message = String.build do |io|
-      io << "Packet.select_answers_ip_records!: " << "After (" << maximum_depth
-      io << ") attempts, no A or AAAA record was found!"
-    end
-
+    message = String.build { |io| io << "Packet.select_answers_ip_records!: " << "After (" << maximum_depth << ") attempts, no A or AAAA record was found!" }
     raise Exception.new message
   end
 
