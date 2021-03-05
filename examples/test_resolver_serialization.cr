@@ -30,7 +30,7 @@ caching:
 options:
   socket:
     maximumTimesOfIpv4ConnectionFailureRetries: 2
-    maximumNumberOfIpv6ConnectionFailureRetries: 2
+    maximumTimesOfIpv6ConnectionFailureRetries: 2
   addrinfo:
     answerSafetyFirst: true
     maximumNumberOfMismatchRetries: 3

@@ -114,18 +114,18 @@ module DNS::Serialization
         include YAML::Serializable
 
         property maximumTimesOfIpv4ConnectionFailureRetries : Int32
-        property maximumNumberOfIpv6ConnectionFailureRetries : Int32
+        property maximumTimesOfIpv6ConnectionFailureRetries : Int32
 
         def initialize
           @maximumTimesOfIpv4ConnectionFailureRetries = 2_i32
-          @maximumNumberOfIpv6ConnectionFailureRetries = 2_i32
+          @maximumTimesOfIpv6ConnectionFailureRetries = 2_i32
         end
 
         def unwrap : DNS::Options::Socket
           socket = DNS::Options::Socket.new
 
           socket.maximumTimesOfIpv4ConnectionFailureRetries = maximumTimesOfIpv4ConnectionFailureRetries
-          socket.maximumNumberOfIpv6ConnectionFailureRetries = maximumNumberOfIpv6ConnectionFailureRetries
+          socket.maximumTimesOfIpv6ConnectionFailureRetries = maximumTimesOfIpv6ConnectionFailureRetries
 
           socket
         end

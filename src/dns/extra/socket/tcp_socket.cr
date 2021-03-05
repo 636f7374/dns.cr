@@ -34,7 +34,7 @@ class TCPSocket < IPSocket
       when .inet?
         next if ipv4_connection_failure_times.get == dns_resolver.options.socket.maximumTimesOfIpv4ConnectionFailureRetries
       when .inet6?
-        next if ipv6_connection_failure_times.get == dns_resolver.options.socket.maximumNumberOfIpv6ConnectionFailureRetries
+        next if ipv6_connection_failure_times.get == dns_resolver.options.socket.maximumTimesOfIpv6ConnectionFailureRetries
       end
 
       begin
