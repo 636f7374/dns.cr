@@ -1,6 +1,6 @@
 require "../src/dns.cr"
-require "../serialization/serialization.cr"
-require "../serialization/*"
+require "../serialized/serialized.cr"
+require "../serialized/*"
 
 text = %(servers:
   - ipAddress: 8.8.8.8:53
@@ -9,7 +9,7 @@ text = %(servers:
       read: 2
       write: 2
       connect: 2
-  - ipAddress: 8.8.4.4:53
+  - ipAddress: 8.8.4.4:853
     protocolType: tls
     tls:
       hostname: dns.google
@@ -41,5 +41,5 @@ options:
     filterType: ipv4_only
     maximumDepthOfCanonicalName: 64)
 
-serialization = DNS::Serialization::Resolver.from_yaml text
-STDOUT.puts [serialization.unwrap]
+serialized = DNS::Serialized::Resolver.from_yaml text
+STDOUT.puts [serialized.unwrap]

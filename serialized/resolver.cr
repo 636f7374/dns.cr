@@ -1,4 +1,4 @@
-module DNS::Serialization
+module DNS::Serialized
   struct Resolver
     include YAML::Serializable
 
