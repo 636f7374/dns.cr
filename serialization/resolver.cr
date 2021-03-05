@@ -13,8 +13,8 @@ module DNS::Serialization
       DNS::Resolver.new dnsServers: unwrap_servers, options: unwrap_options, ipAddressCaching: unwrap_caching_ip_address, packetCaching: unwrap_caching_packet
     end
 
-    def unwrap_servers : Set(DNS::Resolver::Address)
-      list = Set(DNS::Resolver::Address).new
+    def unwrap_servers : Set(DNS::Address)
+      list = Set(DNS::Address).new
 
       servers.each do |server|
         next unless address = server.unwrap
@@ -47,13 +47,13 @@ module DNS::Serialization
       def initialize(@ipAddress : String = "8.8.8.8:53", @protocolType : DNS::ProtocolType = DNS::ProtocolType::UDP, @timeout : TimeOut = TimeOut.new, @tls : TransportLayerSecurity? = nil)
       end
 
-      def unwrap : DNS::Resolver::Address?
+      def unwrap : DNS::Address?
         address, delimiter, port = ipAddress.rpartition ":"
         return unless _port = port.to_i?
         ip_address = Socket::IPAddress.new address: address, port: _port rescue nil
         return unless ip_address
 
-        DNS::Resolver::Address.new ipAddress: ip_address, protocolType: protocolType, timeout: timeout.unwrap, tls: tls.try &.unwrap
+        DNS::Address.new ipAddress: ip_address, protocolType: protocolType, timeout: timeout.unwrap, tls: tls.try &.unwrap
       end
 
       struct TransportLayerSecurity
@@ -65,7 +65,7 @@ module DNS::Serialization
         def initialize(@hostname : String? = nil, @options : Array(String) = [] of String)
         end
 
-        def unwrap : DNS::Resolver::Address::TransportLayerSecurity
+        def unwrap : DNS::Address::TransportLayerSecurity
           options_set = Set(LibSSL::Options).new
 
           options.each do |option|
@@ -73,7 +73,7 @@ module DNS::Serialization
             options_set << _option
           end
 
-          DNS::Resolver::Address::TransportLayerSecurity.new hostname: hostname, options: options_set
+          DNS::Address::TransportLayerSecurity.new hostname: hostname, options: options_set
         end
       end
     end

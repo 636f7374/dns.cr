@@ -4,10 +4,10 @@ require "../src/dns.cr"
 # You can even use `DNS::Resolver::Options` to adjust as needed.
 # We can query the results through UDP, TCP and TLS.
 
-dns_servers = Set(DNS::Resolver::Address).new
-dns_servers << DNS::Resolver::Address.new ipAddress: Socket::IPAddress.new("8.8.8.8", 53_i32), protocolType: DNS::ProtocolType::UDP
-dns_servers << DNS::Resolver::Address.new ipAddress: Socket::IPAddress.new("8.8.4.4", 53_i32), protocolType: DNS::ProtocolType::TCP
-dns_servers << DNS::Resolver::Address.new ipAddress: Socket::IPAddress.new("8.8.4.4", 853_i32), protocolType: DNS::ProtocolType::TLS
+dns_servers = Set(DNS::Address).new
+dns_servers << DNS::Address.new ipAddress: Socket::IPAddress.new("8.8.8.8", 53_i32), protocolType: DNS::ProtocolType::UDP
+dns_servers << DNS::Address.new ipAddress: Socket::IPAddress.new("8.8.4.4", 53_i32), protocolType: DNS::ProtocolType::TCP
+dns_servers << DNS::Address.new ipAddress: Socket::IPAddress.new("8.8.4.4", 853_i32), protocolType: DNS::ProtocolType::TLS
 dns_resolver = DNS::Resolver.new dnsServers: dns_servers, options: DNS::Options.new
 
 concurrent_mutex = Mutex.new :unchecked
