@@ -24,31 +24,46 @@ class TCPSocket < IPSocket
     attempt_connect_timeout_span = attempt_connect_timeout_integer.seconds
 
     before_time = Time.local
-    ipv4_connection_failure_retry_times = 0_i32
-    ipv6_connection_failure_retry_times = 0_i32
+    ipv4_connection_failure_times = Atomic(Int32).new 0_i32
+    ipv6_connection_failure_times = Atomic(Int32).new 0_i32
 
     ip_addresses.each_with_index do |ip_address, index|
       break if connect_timeout_time_span < (Time.local - before_time)
 
       case ip_address.family
       when .inet?
-        next if ipv4_connection_failure_retry_times == dns_resolver.options.socket.ipv4ConnectionFailureRetryTimes
-        ipv4_connection_failure_retry_times += 1_i32
+        next if ipv4_connection_failure_times.get == dns_resolver.options.socket.maximumTimesOfIpv4ConnectionFailureRetries
       when .inet6?
-        next if ipv6_connection_failure_retry_times == dns_resolver.options.socket.ipv6ConnectionFailureRetryTimes
-        ipv6_connection_failure_retry_times += 1_i32
+        next if ipv6_connection_failure_times.get == dns_resolver.options.socket.maximumNumberOfIpv6ConnectionFailureRetries
       end
 
       begin
         socket = new ip_address: ip_address, connect_timeout: attempt_connect_timeout_span
       rescue ex
+        case ip_address.family
+        when .inet?
+          ipv4_connection_failure_times.add 1_i32
+        when .inet6?
+          ipv6_connection_failure_times.add 1_i32
+        end
+
         raise ex if index.zero? && (1_i32 == ip_addresses.size)
         next if index != ip_addresses.size
 
         raise ex
       end
 
-      next if socket.closed?
+      if socket.closed?
+        case ip_address.family
+        when .inet?
+          ipv4_connection_failure_times.add 1_i32
+        when .inet6?
+          ipv6_connection_failure_times.add 1_i32
+        end
+
+        next
+      end
+
       return socket
     end
 

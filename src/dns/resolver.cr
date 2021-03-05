@@ -23,7 +23,7 @@ class DNS::Resolver
     end
 
     packets = getaddrinfo_query_ip_records dns_servers: dnsServers, host: host, class_type: Packet::ClassFlag::Internet
-    ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets, maximum_depth: options.addrinfo.maximumCanonicalNameDepth
+    ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets, maximum_depth: options.addrinfo.maximumDepthOfCanonicalName
 
     ipAddressCaching.set host: host, ip_addresses: ip_addresses
     getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection

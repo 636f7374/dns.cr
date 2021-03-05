@@ -6,12 +6,12 @@ struct DNS::Options
   end
 
   struct Socket
-    property ipv4ConnectionFailureRetryTimes : Int32
-    property ipv6ConnectionFailureRetryTimes : Int32
+    property maximumTimesOfIpv4ConnectionFailureRetries : Int32
+    property maximumNumberOfIpv6ConnectionFailureRetries : Int32
 
     def initialize
-      @ipv4ConnectionFailureRetryTimes = 2_i32
-      @ipv6ConnectionFailureRetryTimes = 2_i32
+      @maximumTimesOfIpv4ConnectionFailureRetries = 2_i32
+      @maximumNumberOfIpv6ConnectionFailureRetries = 2_i32
     end
   end
 
@@ -29,7 +29,7 @@ struct DNS::Options
     property concurrentQuery : Bool
     property queryIpv6 : Bool
     property filterType : FilterType
-    property maximumCanonicalNameDepth : Int32
+    property maximumDepthOfCanonicalName : Int32
 
     def initialize
       @answerSafetyFirst = true
@@ -39,7 +39,7 @@ struct DNS::Options
       @concurrentQuery = true
       @queryIpv6 = false
       @filterType = FilterType::Ipv4Only
-      @maximumCanonicalNameDepth = 64_i32
+      @maximumDepthOfCanonicalName = 64_i32
     end
   end
 end

@@ -113,19 +113,19 @@ module DNS::Serialization
       struct Socket
         include YAML::Serializable
 
-        property ipv4ConnectionFailureRetryTimes : Int32
-        property ipv6ConnectionFailureRetryTimes : Int32
+        property maximumTimesOfIpv4ConnectionFailureRetries : Int32
+        property maximumNumberOfIpv6ConnectionFailureRetries : Int32
 
         def initialize
-          @ipv4ConnectionFailureRetryTimes = 2_i32
-          @ipv6ConnectionFailureRetryTimes = 2_i32
+          @maximumTimesOfIpv4ConnectionFailureRetries = 2_i32
+          @maximumNumberOfIpv6ConnectionFailureRetries = 2_i32
         end
 
         def unwrap : DNS::Options::Socket
           socket = DNS::Options::Socket.new
 
-          socket.ipv4ConnectionFailureRetryTimes = ipv4ConnectionFailureRetryTimes
-          socket.ipv6ConnectionFailureRetryTimes = ipv6ConnectionFailureRetryTimes
+          socket.maximumTimesOfIpv4ConnectionFailureRetries = maximumTimesOfIpv4ConnectionFailureRetries
+          socket.maximumNumberOfIpv6ConnectionFailureRetries = maximumNumberOfIpv6ConnectionFailureRetries
 
           socket
         end
@@ -141,7 +141,7 @@ module DNS::Serialization
         property concurrentQuery : Bool
         property queryIpv6 : Bool
         property filterType : DNS::Options::Addrinfo::FilterType
-        property maximumCanonicalNameDepth : Int32
+        property maximumDepthOfCanonicalName : Int32
 
         def initialize
           @answerSafetyFirst = true
@@ -151,7 +151,7 @@ module DNS::Serialization
           @concurrentQuery = true
           @queryIpv6 = false
           @filterType = DNS::Options::Addrinfo::FilterType::Ipv4Only
-          @maximumCanonicalNameDepth = 64_i32
+          @maximumDepthOfCanonicalName = 64_i32
         end
 
         def unwrap : DNS::Options::Addrinfo
@@ -164,7 +164,7 @@ module DNS::Serialization
           addrinfo.concurrentQuery = concurrentQuery
           addrinfo.queryIpv6 = queryIpv6
           addrinfo.filterType = filterType
-          addrinfo.maximumCanonicalNameDepth = maximumCanonicalNameDepth
+          addrinfo.maximumDepthOfCanonicalName = maximumDepthOfCanonicalName
 
           addrinfo
         end

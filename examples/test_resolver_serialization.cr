@@ -29,8 +29,8 @@ caching:
   numberOfEntriesCleared: 256
 options:
   socket:
-    ipv4ConnectionFailureRetryTimes: 2
-    ipv6ConnectionFailureRetryTimes: 2
+    maximumTimesOfIpv4ConnectionFailureRetries: 2
+    maximumNumberOfIpv6ConnectionFailureRetries: 2
   addrinfo:
     answerSafetyFirst: true
     maximumNumberOfMismatchRetries: 3
@@ -39,7 +39,7 @@ options:
     concurrentQuery: true
     queryIpv6: false
     filterType: ipv4_only
-    maximumCanonicalNameDepth: 64)
+    maximumDepthOfCanonicalName: 64)
 
 serialization = DNS::Serialization::Resolver.from_yaml text
 STDOUT.puts [serialization.unwrap]
