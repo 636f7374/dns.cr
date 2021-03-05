@@ -37,7 +37,7 @@ struct DNS::Records
       end
 
       begin
-        Socket::IPAddress.ipv6_from_io io: temporary, addrlen: length
+        Socket::IPAddress.from_io io: temporary, family: Socket::Family::INET6
       rescue ex
         raise Exception.new String.build { |io| io << "AAAA.read_ipv6_address!: Because: (" << ex.message << ")." }
       end
