@@ -15,7 +15,7 @@ class UDPSocket < IPSocket
 
     before_time = Time.local
     ipv4_connection_failure_times = Atomic(Int32).new 0_i32
-    ipv4_connection_failure_times = Atomic(Int32).new 0_i32
+    ipv6_connection_failure_times = Atomic(Int32).new 0_i32
 
     ip_addresses.each_with_index do |ip_address, index|
       break if connect_timeout_time_span < (Time.local - before_time)
