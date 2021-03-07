@@ -3,20 +3,30 @@ class DNS::Resolver
   property options : Options
   getter ipAddressCaching : Caching::IPAddress
   getter packetCaching : Caching::Packet
+  getter mapperCaching : Caching::IPAddress
   getter getAddrinfoProtector : GetAddrinfoProtector
   getter mutex : Mutex
 
-  def initialize(@dnsServers : Set(Address), @options : Options = Options.new, @ipAddressCaching : Caching::IPAddress = Caching::IPAddress.new, @packetCaching : Caching::Packet = Caching::Packet.new)
+  def initialize(@dnsServers : Set(Address), @options : Options = Options.new, @ipAddressCaching : Caching::IPAddress = Caching::IPAddress.new, @packetCaching : Caching::Packet = Caching::Packet.new, @mapperCaching : Caching::IPAddress = Caching::IPAddress.new)
     @getAddrinfoProtector = GetAddrinfoProtector.new
     @mutex = Mutex.new :unchecked
   end
 
   def getaddrinfo(host : String, port : Int32 = 0_i32) : Tuple(FetchType, Array(Socket::IPAddress))
+    # This function is used as an overloadable.
+    # E.g. Cloudflare.
+
+    getaddrinfo! host: host, port: port
+  end
+
+  private def getaddrinfo!(host : String, port : Int32 = 0_i32) : Tuple(FetchType, Array(Socket::IPAddress))
     ip_address_local = Socket::IPAddress.new address: host, port: port rescue nil
     return Tuple.new FetchType::Local, [ip_address_local] if ip_address_local
 
+    mapperCaching.get?(host: host).try { |ip_addresses| return Tuple.new FetchType::Mapper, ip_addresses }
     ipAddressCaching.get?(host: host, port: port).try { |ip_addresses| return Tuple.new FetchType::Caching, ip_addresses }
-    set_getaddrinfo_protect host: host if options.addrinfo.enableProtection
+
+    protect_getaddrinfo host: host if options.addrinfo.enableProtection
     ipAddressCaching.get?(host: host, port: port).try do |ip_addresses|
       getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
       return Tuple.new FetchType::Caching, ip_addresses
@@ -32,7 +42,7 @@ class DNS::Resolver
     Tuple.new FetchType::Server, ip_addresses.map { |ip_address| Socket::IPAddress.new address: ip_address.address, port: port }
   end
 
-  private def set_getaddrinfo_protect(host : String)
+  private def protect_getaddrinfo(host : String)
     return getAddrinfoProtector.set host: host unless getAddrinfoProtector.includes? host: host
     before_time = Time.local
 
@@ -41,6 +51,17 @@ class DNS::Resolver
       break unless getAddrinfoProtector.includes? host: host
 
       sleep 0.10_f32.seconds
+    end
+  end
+
+  def mapper_caching_set(host : String, value : Socket::IPAddress | Array(Socket::IPAddress) | Set(Socket::IPAddress))
+    case value
+    in Socket::IPAddress
+      mapperCaching.set host: host, ip_address: value
+    in Array(Socket::IPAddress)
+      mapperCaching.set host: host, ip_addresses: value
+    in Set(Socket::IPAddress)
+      mapperCaching.set host: host, ip_addresses: value
     end
   end
 
@@ -136,11 +157,11 @@ class DNS::Resolver
 
   {% for record_type in ["a", "aaaa"] %}
   private def getaddrinfo_query_{{record_type.id}}_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
-    getaddrinfo! dns_servers: dns_servers, host: host, record_type: Packet::RecordFlag::{{record_type.upcase.id}}, class_type: class_type
+    getaddrinfo_query! dns_servers: dns_servers, host: host, record_type: Packet::RecordFlag::{{record_type.upcase.id}}, class_type: class_type
   end
   {% end %}
 
-  private def getaddrinfo!(dns_servers : Set(Address), host : String, record_type : Packet::RecordFlag, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
+  private def getaddrinfo_query!(dns_servers : Set(Address), host : String, record_type : Packet::RecordFlag, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
     ask_packet = Packet.create_getaddrinfo_ask protocol_type: ProtocolType::UDP, name: host, record_type: record_type, class_type: class_type
     resolve! dns_servers: dns_servers, ask_packet: ask_packet
   end

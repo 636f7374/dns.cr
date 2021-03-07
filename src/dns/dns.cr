@@ -11,5 +11,6 @@ module DNS
     Server  = 0_u8
     Local   = 1_u8
     Caching = 2_u8
+    Mapper  = 3_u8
   end
 end

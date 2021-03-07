@@ -21,6 +21,10 @@ module DNS::Caching
       capacity <= self.size
     end
 
+    def clear
+      @mutex.synchronize { entries.clear }
+    end
+
     private def refresh_latest_cleaned_up
       @mutex.synchronize { @latestCleanedUp = Time.local }
     end

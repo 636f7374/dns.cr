@@ -21,6 +21,10 @@ module DNS::Caching
       capacity <= self.size
     end
 
+    def clear
+      @mutex.synchronize { entries.clear }
+    end
+
     private def refresh_latest_cleaned_up
       @mutex.synchronize { @latestCleanedUp = Time.local }
     end
@@ -43,6 +47,22 @@ module DNS::Caching
         entry.ipAddresses.each do |ip_address|
           ip_addresses << Socket::IPAddress.new address: ip_address.address, port: port
         end
+
+        return if ip_addresses.empty?
+        ip_addresses
+      end
+    end
+
+    def get?(host : String) : Array(Socket::IPAddress)?
+      @mutex.synchronize do
+        return unless entry = entries[host]?
+
+        entry.refresh_last_visit
+        entry.add_visits
+        entries[host] = entry
+
+        ip_addresses = [] of Socket::IPAddress
+        entry.ipAddresses.each { |ip_address| ip_addresses << ip_address }
 
         return if ip_addresses.empty?
         ip_addresses
