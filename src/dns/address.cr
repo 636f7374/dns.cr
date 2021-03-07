@@ -23,26 +23,24 @@ struct DNS::Address
 
       Tuple.new nil, socket
     in .tls?
-      openssl_context = OpenSSL::SSL::Context::Client.new
-      tls.try &.options.each { |option| openssl_context.add_options options: option }
-      tls.try &.verifyMode.try { |verify_mode| openssl_context.verify_mode = verify_mode }
+      context = tls.try &.unwrap || OpenSSL::SSL::Context::Client.new
 
       socket = TCPSocket.new ip_address: ipAddress, connect_timeout: timeout.connect
       socket.read_timeout = timeout.read
       socket.write_timeout = timeout.write
 
       begin
-        tls_socket = OpenSSL::SSL::Socket::Client.new socket, context: openssl_context, sync_close: true, hostname: tls.try &.hostname
+        tls_socket = OpenSSL::SSL::Socket::Client.new socket, context: context, sync_close: true, hostname: tls.try &.hostname
         tls_socket.sync = true
       rescue ex
         socket.close rescue nil
-        openssl_context.skip_finalize = true
-        openssl_context.free
+        context.skip_finalize = true
+        context.free
 
         raise ex
       end
 
-      Tuple.new openssl_context, tls_socket
+      Tuple.new context, tls_socket
     end
   end
 
@@ -59,6 +57,15 @@ struct DNS::Address
     property verifyMode : LibSSL::VerifyMode?
 
     def initialize(@hostname : String? = nil, @options : Set(LibSSL::Options) = Set(LibSSL::Options).new, @verifyMode : LibSSL::VerifyMode? = nil)
+    end
+
+    def unwrap : OpenSSL::SSL::Context::Client
+      context = OpenSSL::SSL::Context::Client.new
+
+      options.each { |option| context.add_options options: option }
+      verifyMode.try { |verify_mode| context.verify_mode = verify_mode }
+
+      context
     end
   end
 end
