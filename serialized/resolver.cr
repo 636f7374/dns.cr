@@ -65,11 +65,12 @@ module DNS::Serialized
 
         property hostname : String?
         property options : Array(String)
+        property verifyMode : DNS::Address::TransportLayerSecurity::VerifyMode?
 
-        def initialize(@hostname : String? = nil, @options : Array(String) = [] of String)
+        def initialize(@hostname : String? = nil, @options : Array(String) = [] of String, @verifyMode : DNS::Address::TransportLayerSecurity::VerifyMode? = nil)
         end
 
-        def unwrap : DNS::Address::TransportLayerSecurity
+        def unwrap_options : Set(LibSSL::Options)
           options_set = Set(LibSSL::Options).new
 
           options.each do |option|
@@ -77,7 +78,17 @@ module DNS::Serialized
             options_set << _option
           end
 
-          DNS::Address::TransportLayerSecurity.new hostname: hostname, options: options_set
+          options_set
+        end
+
+        def unwrap_verify_mode : LibSSL::VerifyMode?
+          verify_mode = nil
+          verifyMode.try { |_verify_mode| verify_mode = LibSSL::VerifyMode.new _verify_mode.value.to_i32 }
+          verify_mode
+        end
+
+        def unwrap : DNS::Address::TransportLayerSecurity
+          DNS::Address::TransportLayerSecurity.new hostname: hostname, options: unwrap_options, verifyMode: unwrap_verify_mode
         end
       end
     end

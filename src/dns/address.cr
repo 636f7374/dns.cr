@@ -25,6 +25,7 @@ struct DNS::Address
     in .tls?
       openssl_context = OpenSSL::SSL::Context::Client.new
       tls.try &.options.each { |option| openssl_context.add_options options: option }
+      tls.try &.verifyMode.try { |verify_mode| openssl_context.verify_mode = verify_mode }
 
       socket = TCPSocket.new ip_address: ipAddress, connect_timeout: timeout.connect
       socket.read_timeout = timeout.read
@@ -46,10 +47,18 @@ struct DNS::Address
   end
 
   struct TransportLayerSecurity
+    enum VerifyMode : UInt8
+      NONE                 = 0_u8
+      PEER                 = 1_u8
+      FAIL_IF_NO_PEER_CERT = 2_u8
+      CLIENT_ONCE          = 4_u8
+    end
+
     property hostname : String?
     property options : Set(LibSSL::Options)
+    property verifyMode : LibSSL::VerifyMode?
 
-    def initialize(@hostname : String? = nil, @options : Set(LibSSL::Options) = Set(LibSSL::Options).new)
+    def initialize(@hostname : String? = nil, @options : Set(LibSSL::Options) = Set(LibSSL::Options).new, @verifyMode : LibSSL::VerifyMode? = nil)
     end
   end
 end
