@@ -12,14 +12,14 @@ class DNS::Resolver
     @mutex = Mutex.new :unchecked
   end
 
-  def getaddrinfo(host : String, port : Int32 = 0_i32) : Tuple(FetchType, Array(Socket::IPAddress))
+  def getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Socket::IPAddress))
     # This function is used as an overloadable.
     # E.g. Cloudflare.
 
-    getaddrinfo! host: host, port: port
+    getaddrinfo! host: host, port: port, answer_safety_first: answer_safety_first
   end
 
-  private def getaddrinfo!(host : String, port : Int32 = 0_i32) : Tuple(FetchType, Array(Socket::IPAddress))
+  private def getaddrinfo!(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Socket::IPAddress))
     ip_address_local = Socket::IPAddress.new address: host, port: port rescue nil
     return Tuple.new FetchType::Local, [ip_address_local] if ip_address_local
 
@@ -33,7 +33,8 @@ class DNS::Resolver
     end
 
     packets = getaddrinfo_query_ip_records dns_servers: dnsServers, host: host, class_type: Packet::ClassFlag::Internet
-    ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets, maximum_depth: options.addrinfo.maximumDepthOfCanonicalName
+    ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets,
+      maximum_depth: options.addrinfo.maximumDepthOfCanonicalName, answer_safety_first: answer_safety_first
 
     ipAddressCaching.set host: host, ip_addresses: ip_addresses
     getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
@@ -65,8 +66,8 @@ class DNS::Resolver
     end
   end
 
-  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Array(Socket::IPAddress)
-    packets = packets.sort { |x, y| ~(x.protocolType <=> y.protocolType) } if options.addrinfo.answerSafetyFirst
+  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32, answer_safety_first : Bool = true) : Array(Socket::IPAddress)
+    packets = packets.sort { |x, y| ~(x.protocolType <=> y.protocolType) } if answer_safety_first
 
     case options.addrinfo.filterType
     in .ipv4_only?
@@ -120,7 +121,7 @@ class DNS::Resolver
     concurrent_mutex = Mutex.new :unchecked
     concurrent_fibers = Set(Fiber).new
     reply_mutex = Mutex.new :unchecked
-    reply_packets = [] of Array(Packet)
+    reply_packets = Set(Array(Packet)).new
 
     ipv4_query_fiber = spawn do
       ipv4_packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
@@ -140,7 +141,7 @@ class DNS::Resolver
     loop do
       all_dead = concurrent_mutex.synchronize { concurrent_fibers.all? { |fiber| fiber.dead? } }
       next sleep 0.25_f32.seconds unless all_dead
-      break concurrent_mutex.synchronize { reply_packets.flatten }
+      break concurrent_mutex.synchronize { reply_packets.to_a.flatten }
     end
   end
 
@@ -184,7 +185,7 @@ class DNS::Resolver
     concurrent_mutex = Mutex.new :unchecked
     concurrent_fibers = Set(Fiber).new
     reply_mutex = Mutex.new :unchecked
-    reply_packets = [] of Packet
+    reply_packets = Set(Packet).new
 
     dns_servers.each do |dns_server|
       concurrent_fiber = spawn do
@@ -248,12 +249,12 @@ class DNS::Resolver
     loop do
       all_dead = concurrent_mutex.synchronize { concurrent_fibers.all? { |fiber| fiber.dead? } }
       next sleep 0.25_f32.seconds unless all_dead
-      break concurrent_mutex.synchronize { reply_packets }
+      break concurrent_mutex.synchronize { reply_packets.to_a }
     end
   end
 
   private def regular_resolve(dns_servers : Set(Address), ask_packet : Packet) : Array(Packet)
-    reply_packets = [] of Packet
+    reply_packets = Set(Packet).new
 
     dns_servers.each do |dns_server|
       tuple_context_socket = dns_server.create_socket! rescue nil
@@ -310,7 +311,7 @@ class DNS::Resolver
       end
     end
 
-    reply_packets
+    reply_packets.to_a
   end
 
   private def resolve!(socket : UDPSocket, ask_packet : Packet, protocol_type : ProtocolType) : Packet
