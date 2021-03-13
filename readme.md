@@ -97,7 +97,7 @@ $ make test
 
 ## Credit
 
-* [\_Icon::Freepik/GraphicDesign](https://www.flaticon.com/packs/graphic-design-125)
+* [\_Icon::Freepik/Travel](https://www.flaticon.com/packs/travel-321)
 
 ## Contributors
 
