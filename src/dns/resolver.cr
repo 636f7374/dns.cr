@@ -66,6 +66,17 @@ class DNS::Resolver
     end
   end
 
+  def ip_address_caching_set(host : String, value : Socket::IPAddress | Array(Socket::IPAddress) | Set(Socket::IPAddress))
+    case value
+    in Socket::IPAddress
+      ipAddressCaching.set host: host, ip_address: value
+    in Array(Socket::IPAddress)
+      ipAddressCaching.set host: host, ip_addresses: value
+    in Set(Socket::IPAddress)
+      ipAddressCaching.set host: host, ip_addresses: value
+    end
+  end
+
   private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32, answer_safety_first : Bool = true) : Array(Socket::IPAddress)
     packets = packets.sort { |x, y| ~(x.protocolType <=> y.protocolType) } if answer_safety_first
 
