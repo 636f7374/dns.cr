@@ -134,20 +134,25 @@ class DNS::Resolver
     reply_mutex = Mutex.new :unchecked
     reply_packets = Set(Array(Packet)).new
 
-    ipv4_query_fiber = spawn do
-      ipv4_packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
-      reply_mutex.synchronize { reply_packets << ipv4_packets }
+    main_concurrent_fiber = spawn do
+      ipv4_query_fiber = spawn do
+        ipv4_packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
+        reply_mutex.synchronize { reply_packets << ipv4_packets }
+      end
+
+      concurrent_mutex.synchronize { concurrent_fibers << ipv4_query_fiber }
+
+      if options.addrinfo.queryIpv6
+        ipv6_query_fiber = spawn do
+          ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
+          reply_mutex.synchronize { reply_packets << ipv6_packets }
+        end
+
+        concurrent_mutex.synchronize { concurrent_fibers << ipv6_query_fiber }
+      end
     end
 
-    concurrent_mutex.synchronize { concurrent_fibers << ipv4_query_fiber }
-
-    ipv6_query_fiber = spawn do
-      next unless options.addrinfo.queryIpv6
-      ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
-      reply_mutex.synchronize { reply_packets << ipv6_packets }
-    end
-
-    concurrent_mutex.synchronize { concurrent_fibers << ipv6_query_fiber }
+    concurrent_mutex.synchronize { concurrent_fibers << main_concurrent_fiber }
 
     loop do
       all_dead = concurrent_mutex.synchronize { concurrent_fibers.all? { |fiber| fiber.dead? } }
@@ -198,64 +203,68 @@ class DNS::Resolver
     reply_mutex = Mutex.new :unchecked
     reply_packets = Set(Packet).new
 
-    dns_servers.each do |dns_server|
-      concurrent_fiber = spawn do
-        tuple_context_socket = dns_server.create_socket! rescue nil
-        next unless tuple_context_socket
+    main_concurrent_fiber = spawn do
+      dns_servers.each do |dns_server|
+        concurrent_fiber = spawn do
+          tuple_context_socket = dns_server.create_socket! rescue nil
+          next unless tuple_context_socket
 
-        tls_context, socket = tuple_context_socket
-        dup_ask_packet = ask_packet.dup
-        dup_ask_packet.protocolType = dns_server.protocolType
-        dup_ask_packet.transmissionId = Random.new.rand UInt16
-
-        case socket
-        when UDPSocket
-          reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
-
-          unless reply
-            options.addrinfo.maximumNumberOfMismatchRetries.times do
-              reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
-              break if reply
-            end
-          end
-
-          socket.close rescue nil
-          next unless reply
-          concurrent_mutex.synchronize { reply_packets << reply }
-        when TCPSocket, OpenSSL::SSL::Socket::Client
-          if socket.is_a? OpenSSL::SSL::Socket::Client
-            tls_context.try &.skip_finalize = true
-            socket.skip_finalize = true
-          end
+          tls_context, socket = tuple_context_socket
+          dup_ask_packet = ask_packet.dup
+          dup_ask_packet.protocolType = dns_server.protocolType
+          dup_ask_packet.transmissionId = Random.new.rand UInt16
 
           case socket
-          in TCPSocket
+          when UDPSocket
             reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
-          in OpenSSL::SSL::Socket::Client
-            reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
-          in UDPSocket
-          in IO
-          end
 
-          socket.close rescue nil
+            unless reply
+              options.addrinfo.maximumNumberOfMismatchRetries.times do
+                reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
+                break if reply
+              end
+            end
 
-          if socket.is_a? OpenSSL::SSL::Socket::Client
+            socket.close rescue nil
+            next unless reply
+            concurrent_mutex.synchronize { reply_packets << reply }
+          when TCPSocket, OpenSSL::SSL::Socket::Client
+            if socket.is_a? OpenSSL::SSL::Socket::Client
+              tls_context.try &.skip_finalize = true
+              socket.skip_finalize = true
+            end
+
+            case socket
+            in TCPSocket
+              reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
+            in OpenSSL::SSL::Socket::Client
+              reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
+            in UDPSocket
+            in IO
+            end
+
+            socket.close rescue nil
+
+            if socket.is_a? OpenSSL::SSL::Socket::Client
+              tls_context.try &.free
+              socket.free
+            end
+
+            next unless reply
+            reply_mutex.synchronize { reply_packets << reply }
+          else
+            tls_context.try &.skip_finalize = true
             tls_context.try &.free
-            socket.free
+
+            socket.close rescue nil
           end
-
-          next unless reply
-          reply_mutex.synchronize { reply_packets << reply }
-        else
-          tls_context.try &.skip_finalize = true
-          tls_context.try &.free
-
-          socket.close rescue nil
         end
-      end
 
-      concurrent_mutex.synchronize { concurrent_fibers << concurrent_fiber }
+        concurrent_mutex.synchronize { concurrent_fibers << concurrent_fiber }
+      end
     end
+
+    concurrent_mutex.synchronize { concurrent_fibers << main_concurrent_fiber }
 
     loop do
       all_dead = concurrent_mutex.synchronize { concurrent_fibers.all? { |fiber| fiber.dead? } }
