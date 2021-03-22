@@ -4,4 +4,5 @@ version: 0.1.0
 authors:
   - 636f7374
 
+crystal: 1.0.0
 license: BSDv3
