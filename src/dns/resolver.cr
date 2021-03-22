@@ -13,7 +13,7 @@ class DNS::Resolver
   end
 
   def getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Socket::IPAddress))
-    # This function is used as an overloadable.
+    # This function is used as an overridable.
     # E.g. Cloudflare.
 
     getaddrinfo! host: host, port: port, answer_safety_first: answer_safety_first
