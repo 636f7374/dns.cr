@@ -8,9 +8,10 @@ module DNS
   end
 
   enum FetchType : UInt8
-    Server  = 0_u8
-    Local   = 1_u8
-    Caching = 2_u8
-    Mapper  = 3_u8
+    Server   = 0_u8
+    Local    = 1_u8
+    Caching  = 2_u8
+    Mapper   = 3_u8
+    Override = 4_u8
   end
 end

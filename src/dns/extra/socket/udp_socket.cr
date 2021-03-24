@@ -1,7 +1,7 @@
 class UDPSocket < IPSocket
   def connect(host : String, port : Int32, dns_resolver : DNS::Resolver, connect_timeout : Int | Time::Span | Nil = nil) : Bool
     fetch_type, ip_addresses = dns_resolver.getaddrinfo host: host, port: port
-    raise Exception.new String.build { |io| io << "UDPSocket.connect: " << "Unfortunately, DNS::Resolver.getaddrinfo! The resulting (" << fetch_type.to_s << ") IP list is empty!" } if ip_addresses.empty?
+    raise Exception.new String.build { |io| io << "UDPSocket.connect: " << "Unfortunately, DNS::Resolver.getaddrinfo! The host: (" << host << ") & fetchType: (" << fetch_type << ")" << " IPAddress result is empty!" } if ip_addresses.empty?
 
     connect_timeout_time_span = 10_i32.seconds
     connect_timeout_time_span = connect_timeout if connect_timeout.is_a? Time::Span
@@ -46,6 +46,6 @@ class UDPSocket < IPSocket
       return true
     end
 
-    raise Exception.new "UDPSocket.connect: Tries to connect the DNS::Resolver.getaddrinfo! Returned results, But it still fails!"
+    raise Exception.new String.build { |io| io << "UDPSocket.connect: Tries to connect the DNS::Resolver.getaddrinfo! address: (" << host << ":" << port << ") & fetchType: (" << fetch_type << ") & count: (" << ip_addresses.size << ") IP addresses, But still failed to connect!" }
   end
 end
