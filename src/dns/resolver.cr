@@ -39,8 +39,8 @@ class DNS::Resolver
     ipAddressCaching.set host: host, ip_addresses: ip_addresses
     getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
 
-    return Tuple.new FetchType::Server, ip_addresses if port.zero?
-    Tuple.new FetchType::Server, ip_addresses.map { |ip_address| Socket::IPAddress.new address: ip_address.address, port: port }
+    return Tuple.new FetchType::Remote, ip_addresses.map { |tuple| tuple.last } if port.zero?
+    Tuple.new FetchType::Remote, ip_addresses.map { |tuple| Socket::IPAddress.new address: tuple.last.address, port: port }
   end
 
   private def protect_getaddrinfo(host : String)
@@ -55,29 +55,29 @@ class DNS::Resolver
     end
   end
 
-  def mapper_caching_set(host : String, value : Socket::IPAddress | Array(Socket::IPAddress) | Set(Socket::IPAddress))
+  def mapper_caching_set(host : String, value : Tuple(Time::Span, Socket::IPAddress) | Array(Tuple(Time::Span, Socket::IPAddress)) | Set(Tuple(Time::Span, Socket::IPAddress)))
     case value
-    in Socket::IPAddress
+    in Tuple(Time::Span, Socket::IPAddress)
       mapperCaching.set host: host, ip_address: value
-    in Array(Socket::IPAddress)
+    in Array(Tuple(Time::Span, Socket::IPAddress))
       mapperCaching.set host: host, ip_addresses: value
-    in Set(Socket::IPAddress)
+    in Set(Tuple(Time::Span, Socket::IPAddress))
       mapperCaching.set host: host, ip_addresses: value
     end
   end
 
-  def ip_address_caching_set(host : String, value : Socket::IPAddress | Array(Socket::IPAddress) | Set(Socket::IPAddress))
+  def ip_address_caching_set(host : String, value : Tuple(Time::Span, Socket::IPAddress) | Array(Tuple(Time::Span, Socket::IPAddress)) | Set(Tuple(Time::Span, Socket::IPAddress)))
     case value
-    in Socket::IPAddress
+    in Tuple(Time::Span, Socket::IPAddress)
       ipAddressCaching.set host: host, ip_address: value
-    in Array(Socket::IPAddress)
+    in Array(Tuple(Time::Span, Socket::IPAddress))
       ipAddressCaching.set host: host, ip_addresses: value
-    in Set(Socket::IPAddress)
+    in Set(Tuple(Time::Span, Socket::IPAddress))
       ipAddressCaching.set host: host, ip_addresses: value
     end
   end
 
-  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32, answer_safety_first : Bool = true) : Array(Socket::IPAddress)
+  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32, answer_safety_first : Bool = true) : Set(Tuple(Time::Span, Socket::IPAddress))
     packets = packets.sort { |x, y| ~(x.protocolType <=> y.protocolType) } if answer_safety_first
 
     case options.addrinfo.filterType
@@ -91,22 +91,22 @@ class DNS::Resolver
   end
 
   {% for record_type in ["a", "aaaa"] %}
-  def self.select_packet_answers_{{record_type.id}}_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Array(Socket::IPAddress)
-    ip_addresses = [] of Socket::IPAddress
+  def self.select_packet_answers_{{record_type.id}}_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(Time::Span, Socket::IPAddress))
+    ip_addresses = [] of Tuple(Time::Span, Socket::IPAddress)
 
     packets.each do |packet| 
       records = packet.select_answers_{{record_type.id}}_records! name: host, maximum_depth: maximum_depth rescue nil
       next unless records
 
-      records.each { |record| ip_addresses << record.address }
+      records.each { |record| ip_addresses << Tuple.new record.ttl, record.address }
     end
 
-    ip_addresses.uniq
+    ip_addresses.uniq { |entry| entry.last }.to_set
   end
   {% end %}
 
-  def self.select_packet_answers_ip_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Array(Socket::IPAddress)
-    ip_addresses = [] of Socket::IPAddress
+  def self.select_packet_answers_ip_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(Time::Span, Socket::IPAddress))
+    ip_addresses = [] of Tuple(Time::Span, Socket::IPAddress)
 
     packets.each do |packet|
       records = packet.select_answers_ip_records! name: host, maximum_depth: maximum_depth rescue nil
@@ -115,12 +115,12 @@ class DNS::Resolver
       records.each do |record|
         case record
         when Records::A, Records::AAAA
-          ip_addresses << record.address
+          ip_addresses << Tuple.new record.ttl, record.address
         end
       end
     end
 
-    ip_addresses.uniq
+    ip_addresses.uniq { |entry| entry.last }.to_set
   end
 
   private def getaddrinfo_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
@@ -189,7 +189,7 @@ class DNS::Resolver
     packets = resolve! dns_servers: dnsServers, ask_packet: ask_packet
     packetCaching.set host: host, record_type: record_type, packets: packets
 
-    Tuple.new FetchType::Server, packets
+    Tuple.new FetchType::Remote, packets
   end
 
   private def resolve!(dns_servers : Set(Address), ask_packet : Packet) : Array(Packet)

@@ -30,7 +30,7 @@ module DNS::Caching
     end
 
     private def need_cleared? : Bool
-      interval = Time.local - (@mutex.synchronize { latestCleanedUp })
+      interval = Time.local - (@mutex.synchronize { latestCleanedUp.dup })
       interval > clearInterval
     end
 
@@ -38,7 +38,7 @@ module DNS::Caching
       @mutex.synchronize do
         return unless entry = entries[host]?
 
-        entry.refresh_last_visit
+        entry.refresh_latest_visit
         entry.add_visits
         entries[host] = entry
 
@@ -122,7 +122,7 @@ module DNS::Caching
         sorted_list = list.sort { |x, y| x.first <=> y.first }
         sorted_list.each_with_index do |item, index|
           break if index > maximum_cleared
-          entries.delete item.last
+          entries.delete item.latest
         end
       end
     end
@@ -151,7 +151,7 @@ module DNS::Caching
         @visits.add 1_i64
       end
 
-      def refresh_last_visit
+      def refresh_latest_visit
         @latestVisit = Time.local
       end
     end

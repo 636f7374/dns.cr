@@ -30,22 +30,27 @@ module DNS::Caching
     end
 
     private def need_cleared? : Bool
-      interval = Time.local - (@mutex.synchronize { latestCleanedUp })
+      interval = Time.local - (@mutex.synchronize { latestCleanedUp.dup })
       interval > clearInterval
     end
 
     def get?(host : String, port : Int32) : Array(Socket::IPAddress)?
+      time_local = Time.local
+
       @mutex.synchronize do
         return unless entry = entries[host]?
 
-        entry.refresh_last_visit
+        entry.refresh_latest_visit
         entry.add_visits
         entries[host] = entry
 
         ip_addresses = [] of Socket::IPAddress
 
-        entry.ipAddresses.each do |ip_address|
-          ip_addresses << Socket::IPAddress.new address: ip_address.address, port: port
+        entry.ipAddresses.each do |tuple|
+          ttl, _ip_address = tuple
+          next if time_local > (entry.createdAt + ttl)
+
+          ip_addresses << Socket::IPAddress.new address: _ip_address.address, port: port
         end
 
         return if ip_addresses.empty?
@@ -54,33 +59,41 @@ module DNS::Caching
     end
 
     def get?(host : String) : Array(Socket::IPAddress)?
+      time_local = Time.local
+
       @mutex.synchronize do
         return unless entry = entries[host]?
 
-        entry.refresh_last_visit
+        entry.refresh_latest_visit
         entry.add_visits
         entries[host] = entry
 
         ip_addresses = [] of Socket::IPAddress
-        entry.ipAddresses.each { |ip_address| ip_addresses << ip_address }
+
+        entry.ipAddresses.each do |tuple|
+          ttl, _ip_address = tuple
+          next if time_local > (entry.createdAt + ttl)
+
+          ip_addresses << _ip_address
+        end
 
         return if ip_addresses.empty?
         ip_addresses
       end
     end
 
-    def set(host : String, ip_address : Socket::IPAddress)
-      ip_address_set = Set(Socket::IPAddress).new
+    def set(host : String, ip_address : Tuple(Time::Span, Socket::IPAddress))
+      ip_address_set = Set(Tuple(Time::Span, Socket::IPAddress)).new
       ip_address_set << ip_address
 
       set host: host, ip_addresses: ip_address_set
     end
 
-    def set(host : String, ip_addresses : Array(Socket::IPAddress))
+    def set(host : String, ip_addresses : Array(Tuple(Time::Span, Socket::IPAddress)))
       set host: host, ip_addresses: ip_addresses.to_set
     end
 
-    def set(host : String, ip_addresses : Set(Socket::IPAddress))
+    def set(host : String, ip_addresses : Set(Tuple(Time::Span, Socket::IPAddress)))
       return if ip_addresses.empty?
       inactive_entry_cleanup
 
@@ -129,12 +142,14 @@ module DNS::Caching
     {% end %}
 
     struct Entry
-      property ipAddresses : Set(Socket::IPAddress)
+      property ipAddresses : Set(Tuple(Time::Span, Socket::IPAddress))
       property latestVisit : Time
+      property createdAt : Time
       property visits : Atomic(Int64)
 
-      def initialize(@ipAddresses : Set(Socket::IPAddress))
+      def initialize(@ipAddresses : Set(Tuple(Time::Span, Socket::IPAddress)))
         @latestVisit = Time.local
+        @createdAt = Time.local
         @visits = Atomic(Int64).new 0_i64
       end
 
@@ -142,7 +157,7 @@ module DNS::Caching
         @visits.add 1_i64
       end
 
-      def refresh_last_visit
+      def refresh_latest_visit
         @latestVisit = Time.local
       end
     end

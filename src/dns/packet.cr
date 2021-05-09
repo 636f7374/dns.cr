@@ -399,8 +399,7 @@ struct DNS::Packet
     end
 
     message = String.build do |io| 
-      io << "Packet.select_answers_" << {{record_type.id.stringify}} << "_records!: " << "After (" << maximum_depth 
-      io << ") attempts, no any " << {{record_type.upcase.id.stringify}} << " record was found!"
+      io << "Packet.select_answers_" << {{record_type.id.stringify}} << "_records!: " << "After (" << maximum_depth << ") attempts, no any " << {{record_type.upcase.id.stringify}} << " record was found!"
     end
 
     raise Exception.new message
