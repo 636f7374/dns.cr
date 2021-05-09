@@ -122,7 +122,7 @@ module DNS::Caching
         sorted_list = list.sort { |x, y| x.first <=> y.first }
         sorted_list.each_with_index do |item, index|
           break if index > maximum_cleared
-          entries.delete item.latest
+          entries.delete item.last
         end
       end
     end
