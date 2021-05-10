@@ -27,7 +27,7 @@ struct DNS::Options
     property enableProtection : Bool
     property protectionWaitingTime : Time::Span
     property concurrentQuery : Bool
-    property queryIpv6 : Bool
+    property queryType : FilterType
     property filterType : FilterType
     property maximumDepthOfCanonicalName : Int32
 
@@ -37,7 +37,7 @@ struct DNS::Options
       @enableProtection = true
       @protectionWaitingTime = 5_i32.seconds
       @concurrentQuery = true
-      @queryIpv6 = false
+      @queryType = FilterType::Ipv4Only
       @filterType = FilterType::Ipv4Only
       @maximumDepthOfCanonicalName = 64_i32
     end

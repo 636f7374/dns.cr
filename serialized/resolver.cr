@@ -167,7 +167,7 @@ module DNS::Serialized
         property enableProtection : Bool
         property protectionWaitingTime : UInt8
         property concurrentQuery : Bool
-        property queryIpv6 : Bool
+        property queryType : DNS::Options::Addrinfo::FilterType
         property filterType : DNS::Options::Addrinfo::FilterType
         property maximumDepthOfCanonicalName : Int32
 
@@ -177,7 +177,7 @@ module DNS::Serialized
           @enableProtection = true
           @protectionWaitingTime = 5_u8
           @concurrentQuery = true
-          @queryIpv6 = false
+          @queryType = DNS::Options::Addrinfo::FilterType::Ipv4Only
           @filterType = DNS::Options::Addrinfo::FilterType::Ipv4Only
           @maximumDepthOfCanonicalName = 64_i32
         end
@@ -190,7 +190,7 @@ module DNS::Serialized
           addrinfo.enableProtection = enableProtection
           addrinfo.protectionWaitingTime = protectionWaitingTime.seconds
           addrinfo.concurrentQuery = concurrentQuery
-          addrinfo.queryIpv6 = queryIpv6
+          addrinfo.queryType = queryType
           addrinfo.filterType = filterType
           addrinfo.maximumDepthOfCanonicalName = maximumDepthOfCanonicalName
 

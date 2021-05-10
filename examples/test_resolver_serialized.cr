@@ -49,7 +49,7 @@ options:
     enableProtection: true
     protectionWaitingTime: 5
     concurrentQuery: true
-    queryIpv6: false
+    queryType: ipv4_only
     filterType: ipv4_only
     maximumDepthOfCanonicalName: 64
 caching:

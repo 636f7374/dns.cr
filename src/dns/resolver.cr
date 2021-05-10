@@ -135,14 +135,29 @@ class DNS::Resolver
     reply_packets = Set(Array(Packet)).new
 
     main_concurrent_fiber = spawn do
-      ipv4_query_fiber = spawn do
-        ipv4_packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
-        reply_mutex.synchronize { reply_packets << ipv4_packets }
-      end
+      case options.addrinfo.queryType
+      in .ipv4_only?
+        ipv4_query_fiber = spawn do
+          ipv4_packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
+          reply_mutex.synchronize { reply_packets << ipv4_packets }
+        end
 
-      concurrent_mutex.synchronize { concurrent_fibers << ipv4_query_fiber }
+        concurrent_mutex.synchronize { concurrent_fibers << ipv4_query_fiber }
+      in .ipv6_only?
+        ipv6_query_fiber = spawn do
+          ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
+          reply_mutex.synchronize { reply_packets << ipv6_packets }
+        end
 
-      if options.addrinfo.queryIpv6
+        concurrent_mutex.synchronize { concurrent_fibers << ipv6_query_fiber }
+      in .both?
+        ipv4_query_fiber = spawn do
+          ipv4_packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
+          reply_mutex.synchronize { reply_packets << ipv4_packets }
+        end
+
+        concurrent_mutex.synchronize { concurrent_fibers << ipv4_query_fiber }
+
         ipv6_query_fiber = spawn do
           ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
           reply_mutex.synchronize { reply_packets << ipv6_packets }
@@ -162,14 +177,19 @@ class DNS::Resolver
   end
 
   private def regular_getaddrinfo_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
-    packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
+    case options.addrinfo.queryType
+    in .ipv4_only?
+      getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
+    in .ipv6_only?
+      ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
+    in .both?
+      packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
 
-    if options.addrinfo.queryIpv6
       ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
       ipv6_packets.each { |packet| packets << packet }
-    end
 
-    packets
+      packets
+    end
   end
 
   {% for record_type in ["a", "aaaa"] %}
