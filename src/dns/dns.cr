@@ -2,9 +2,11 @@ module DNS
   AvailableRecordFlags = Set{"A", "AAAA", "NS", "PTR", "CNAME", "SOA", "TXT", "MX", "DNAME", "SRV", "OPT"}
 
   enum ProtocolType : UInt8
-    UDP = 0_u8
-    TCP = 1_u8
-    TLS = 2_u8
+    UDP   = 0_u8
+    TCP   = 1_u8
+    TLS   = 2_u8
+    HTTP  = 3_u8
+    HTTPS = 4_u8
   end
 
   enum FetchType : UInt8

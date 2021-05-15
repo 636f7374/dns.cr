@@ -52,7 +52,7 @@ module DNS::Serialized
       end
 
       def unwrap : DNS::Address?
-        address, delimiter, port = ipAddress.rpartition ":"
+        address, delimiter, port = ipAddress.rpartition ':'
         return unless _port = port.to_i?
         ip_address = Socket::IPAddress.new address: address, port: _port rescue nil
         return unless ip_address
@@ -141,19 +141,22 @@ module DNS::Serialized
       struct Socket
         include YAML::Serializable
 
-        property maximumTimesOfIpv4ConnectionFailureRetries : Int32
-        property maximumTimesOfIpv6ConnectionFailureRetries : Int32
+        property maximumNumberOfRetriesForPerIpAddress : UInt8
+        property maximumNumberOfRetriesForIpv4ConnectionFailure : Int32
+        property maximumNumberOfRetriesForIpv6ConnectionFailure : Int32
 
         def initialize
-          @maximumTimesOfIpv4ConnectionFailureRetries = 2_i32
-          @maximumTimesOfIpv6ConnectionFailureRetries = 2_i32
+          @maximumNumberOfRetriesForPerIpAddress = 1_u8
+          @maximumNumberOfRetriesForIpv4ConnectionFailure = 2_i32
+          @maximumNumberOfRetriesForIpv6ConnectionFailure = 2_i32
         end
 
         def unwrap : DNS::Options::Socket
           socket = DNS::Options::Socket.new
 
-          socket.maximumTimesOfIpv4ConnectionFailureRetries = maximumTimesOfIpv4ConnectionFailureRetries
-          socket.maximumTimesOfIpv6ConnectionFailureRetries = maximumTimesOfIpv6ConnectionFailureRetries
+          socket.maximumNumberOfRetriesForPerIpAddress = maximumNumberOfRetriesForPerIpAddress
+          socket.maximumNumberOfRetriesForIpv4ConnectionFailure = maximumNumberOfRetriesForIpv4ConnectionFailure
+          socket.maximumNumberOfRetriesForIpv6ConnectionFailure = maximumNumberOfRetriesForIpv6ConnectionFailure
 
           socket
         end

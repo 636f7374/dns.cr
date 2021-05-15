@@ -9,20 +9,20 @@ struct DNS::Address
 
   def create_socket! : Tuple(OpenSSL::SSL::Context::Client?, UDPSocket | TCPSocket | OpenSSL::SSL::Socket::Client)
     case protocolType
-    in .udp?
+    when .udp?
       socket = UDPSocket.new family: ipAddress.family
       socket.read_timeout = timeout.read
       socket.write_timeout = timeout.write
       socket.connect ip_address: ipAddress, connect_timeout: timeout.connect
 
       Tuple.new nil, socket
-    in .tcp?
+    when ProtocolType::TCP, ProtocolType::HTTP
       socket = TCPSocket.new ip_address: ipAddress, connect_timeout: timeout.connect
       socket.read_timeout = timeout.read
       socket.write_timeout = timeout.write
 
       Tuple.new nil, socket
-    in .tls?
+    else
       context = tls.try &.unwrap || OpenSSL::SSL::Context::Client.new
 
       socket = TCPSocket.new ip_address: ipAddress, connect_timeout: timeout.connect

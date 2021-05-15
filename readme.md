@@ -25,8 +25,8 @@
 * [X] Concurrent
 * [X] Caching
 * [X] UDP
-* [X] TCP
-* [X] TLS (DoT)
+* [X] DNS over T(CP/LS)
+* [X] DNS over HTTP(S)
 
 ## Usage
 

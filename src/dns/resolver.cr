@@ -231,8 +231,10 @@ class DNS::Resolver
 
           tls_context, socket = tuple_context_socket
           dup_ask_packet = ask_packet.dup
-          dup_ask_packet.protocolType = dns_server.protocolType
           dup_ask_packet.transmissionId = Random.new.rand UInt16
+
+          dup_ask_packet.protocolType = dns_server.protocolType
+          dup_ask_packet.protocolType = ProtocolType::UDP if dns_server.protocolType.http? || dns_server.protocolType.https?
 
           case socket
           when UDPSocket
@@ -256,9 +258,9 @@ class DNS::Resolver
 
             case socket
             in TCPSocket
-              reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
+              reply = resolve! dns_server: dns_server, socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
             in OpenSSL::SSL::Socket::Client
-              reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
+              reply = resolve! dns_server: dns_server, socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
             in UDPSocket
             in IO
             end
@@ -302,8 +304,10 @@ class DNS::Resolver
 
       tls_context, socket = tuple_context_socket
       dup_ask_packet = ask_packet.dup
-      dup_ask_packet.protocolType = dns_server.protocolType
       dup_ask_packet.transmissionId = Random.new.rand UInt16
+
+      dup_ask_packet.protocolType = dns_server.protocolType
+      dup_ask_packet.protocolType = ProtocolType::UDP if dns_server.protocolType.http? || dns_server.protocolType.https?
 
       case socket
       when UDPSocket
@@ -327,9 +331,9 @@ class DNS::Resolver
 
         case socket
         in TCPSocket
-          reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
+          reply = resolve! dns_server: dns_server, socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
         in OpenSSL::SSL::Socket::Client
-          reply = resolve! socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
+          reply = resolve! dns_server: dns_server, socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
         in UDPSocket
         in IO
         end
@@ -371,15 +375,28 @@ class DNS::Resolver
     reply
   end
 
-  private def resolve!(socket : TCPSocket | OpenSSL::SSL::Socket::Client, ask_packet : Packet, protocol_type : ProtocolType) : Packet
-    buffer = uninitialized UInt8[4096_i32]
-    socket.write ask_packet.to_slice
+  private def resolve!(dns_server : Address, socket : TCPSocket | OpenSSL::SSL::Socket::Client, ask_packet : Packet, protocol_type : ProtocolType) : Packet
+    case protocol_type
+    when .tls?
+      socket.write ask_packet.to_slice
+      _protocol_type = protocol_type
+    else
+      request = HTTP::Request.new method: "GET", resource: String.build { |io| io << "/dns-query?dns=" << Base64.strict_encode(String.new(ask_packet.to_slice)) }
+      request.headers.add key: "Accept", value: "application/dns-message"
+      request.headers.add key: "Host", value: String.build { |io| io << dns_server.ipAddress.address << ':' << dns_server.ipAddress.port }
+      request.to_io io: socket
 
+      HTTP::Client::Response.from_io io: socket, ignore_body: true
+      _protocol_type = ProtocolType::UDP
+    end
+
+    buffer = uninitialized UInt8[4096_i32]
     read_length = socket.read buffer.to_slice
     raise Exception.new "Resolver.resolve!: DNS query failed, zero bytes have been read!" if read_length.zero?
 
     memory = IO::Memory.new buffer.to_slice[0_i32, read_length]
-    reply = Packet.from_io protocol_type: protocol_type, io: memory
+    reply = Packet.from_io protocol_type: _protocol_type, io: memory
+
     raise Exception.new String.build { |io| io << "Resolver.resolve!: DNS query failed, Possibly because the server is not responding!" } unless reply
     raise Exception.new String.build { |io| io << "Resolver.resolve!: The arType of the reply packet is not ARType::Reply!" } unless reply.arType.reply?
     raise Exception.new String.build { |io| io << "Resolver.resolve!: The transmissionId of the reply packet does not match the ask transmissionId!" } if ask_packet.transmissionId != reply.transmissionId

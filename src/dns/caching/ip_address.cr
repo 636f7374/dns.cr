@@ -35,7 +35,7 @@ module DNS::Caching
     end
 
     def get?(host : String, port : Int32) : Array(Socket::IPAddress)?
-      time_local = Time.local
+      starting_time = Time.local
 
       @mutex.synchronize do
         return unless entry = entries[host]?
@@ -48,7 +48,7 @@ module DNS::Caching
 
         entry.ipAddresses.each do |tuple|
           ttl, _ip_address = tuple
-          next if time_local > (entry.createdAt + ttl)
+          next if starting_time > (entry.createdAt + ttl)
 
           ip_addresses << Socket::IPAddress.new address: _ip_address.address, port: port
         end
@@ -59,7 +59,7 @@ module DNS::Caching
     end
 
     def get?(host : String) : Array(Socket::IPAddress)?
-      time_local = Time.local
+      starting_time = Time.local
 
       @mutex.synchronize do
         return unless entry = entries[host]?
@@ -72,7 +72,7 @@ module DNS::Caching
 
         entry.ipAddresses.each do |tuple|
           ttl, _ip_address = tuple
-          next if time_local > (entry.createdAt + ttl)
+          next if starting_time > (entry.createdAt + ttl)
 
           ip_addresses << _ip_address
         end

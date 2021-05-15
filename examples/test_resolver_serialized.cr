@@ -41,8 +41,9 @@ text = %(servers:
         - no_tls_v1_2
 options:
   socket:
-    maximumTimesOfIpv4ConnectionFailureRetries: 6
-    maximumTimesOfIpv6ConnectionFailureRetries: 2
+    maximumNumberOfRetriesForPerIpAddress: 1
+    maximumNumberOfRetriesForIpv4ConnectionFailure: 6
+    maximumNumberOfRetriesForIpv6ConnectionFailure: 2
   addrinfo:
     answerSafetyFirst: true
     maximumNumberOfMismatchRetries: 3
