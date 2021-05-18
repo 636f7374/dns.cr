@@ -16,10 +16,10 @@ class DNS::Resolver
     # This function is used as an overridable.
     # E.g. Cloudflare.
 
-    getaddrinfo! host: host, port: port, answer_safety_first: answer_safety_first
+    __getaddrinfo host: host, port: port, answer_safety_first: answer_safety_first
   end
 
-  private def getaddrinfo!(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Socket::IPAddress))
+  private def __getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Socket::IPAddress))
     ip_address_local = Socket::IPAddress.new address: host, port: port rescue nil
     return Tuple.new FetchType::Local, [ip_address_local] if ip_address_local
 
@@ -403,6 +403,11 @@ class DNS::Resolver
     raise Exception.new String.build { |io| io << "Resolver.resolve!: The errorType of the reply packet is not Packet::ErrorFlag::NoError!" } unless reply.errorType.no_error?
 
     reply
+  end
+
+  def __create_socket_exception_call(ip_address : Socket::IPAddress, exception : Exception)
+    # This function is used as an overridable.
+    # E.g. Cloudflare.
   end
 end
 

@@ -60,6 +60,8 @@ class TCPSocket < IPSocket
 
         raise Exception.new String.build { |io| io << "TCPSocket.new: IPAddress: (" << ip_address << ") connection failed (Nil)!" } unless socket
       rescue ex
+        dns_resolver.__create_socket_exception_call ip_address: ip_address, exception: ex
+
         case ip_address.family
         when .inet?
           ipv4_connection_failure_counter.add 1_i32
