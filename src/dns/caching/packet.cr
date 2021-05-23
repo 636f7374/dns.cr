@@ -14,7 +14,7 @@ module DNS::Caching
     end
 
     def size
-      @mutex.synchronize { entries.size }
+      @mutex.synchronize { entries.size.dup }
     end
 
     def full?
@@ -48,9 +48,9 @@ module DNS::Caching
           when .{{available_type.downcase.id}}?
             return if entry.{{available_type.downcase.id}}.empty?
 
-            temporary = [] of DNS::Packet
-            entry.{{available_type.downcase.id}}.each { |item| temporary << item }
-            temporary
+            packets = [] of DNS::Packet
+            entry.{{available_type.downcase.id}}.each { |packet| packets << packet }
+            packets
             {% end %}
           end
         {% end %}
@@ -120,9 +120,16 @@ module DNS::Caching
         end
 
         sorted_list = list.sort { |x, y| x.first <=> y.first }
-        sorted_list.each_with_index do |item, index|
+        sorted_list.each_with_index do |tuple, index|
           break if index > maximum_cleared
-          entries.delete item.last
+
+          {% if clear_type.id == "latest_visit" %}
+            latest_visit, host = tuple
+          {% elsif clear_type.id == "visits" %}
+            visits, host = tuple
+          {% end %}
+
+          entries.delete host
         end
       end
     end

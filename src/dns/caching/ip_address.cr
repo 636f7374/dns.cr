@@ -184,9 +184,9 @@ module DNS::Caching
           break if index > maximum_cleared
 
           {% if clear_type.id == "latest_visit" %}
-            latest_visit, host = list
+            latest_visit, host = tuple
           {% elsif clear_type.id == "visits" %}
-            visits, host = list
+            visits, host = tuple
           {% end %}
 
           entries.delete host
