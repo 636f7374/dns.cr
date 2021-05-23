@@ -34,6 +34,30 @@ module DNS::Caching
       interval > clearInterval
     end
 
+    def get_raw?(host : String, port : Int32) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
+      starting_time = Time.local
+
+      @mutex.synchronize do
+        return unless entry = entries[host]?
+
+        entry.refresh_latest_visit
+        entry.add_visits
+        entries[host] = entry
+
+        _ip_addresses = entry.ipAddresses.map do |tuple|
+          protocol_type, ttl, _ip_address = tuple
+          next if starting_time > (entry.createdAt + ttl)
+
+          Tuple.new protocol_type, ttl, Socket::IPAddress.new address: _ip_address.address, port: port
+        end
+
+        _ip_addresses = _ip_addresses.compact
+        return if _ip_addresses.empty?
+
+        _ip_addresses
+      end
+    end
+
     def get?(host : String, port : Int32) : Array(Socket::IPAddress)?
       starting_time = Time.local
 
@@ -47,7 +71,7 @@ module DNS::Caching
         ip_addresses = [] of Socket::IPAddress
 
         entry.ipAddresses.each do |tuple|
-          ttl, _ip_address = tuple
+          protocol_type, ttl, _ip_address = tuple
           next if starting_time > (entry.createdAt + ttl)
 
           ip_addresses << Socket::IPAddress.new address: _ip_address.address, port: port
@@ -55,6 +79,30 @@ module DNS::Caching
 
         return if ip_addresses.empty?
         ip_addresses
+      end
+    end
+
+    def get_raw?(host : String) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
+      starting_time = Time.local
+
+      @mutex.synchronize do
+        return unless entry = entries[host]?
+
+        entry.refresh_latest_visit
+        entry.add_visits
+        entries[host] = entry
+
+        _ip_addresses = entry.ipAddresses.map do |tuple|
+          protocol_type, ttl, _ip_address = tuple
+          next if starting_time > (entry.createdAt + ttl)
+
+          tuple
+        end
+
+        _ip_addresses = _ip_addresses.compact
+        return if _ip_addresses.empty?
+
+        _ip_addresses
       end
     end
 
@@ -71,7 +119,7 @@ module DNS::Caching
         ip_addresses = [] of Socket::IPAddress
 
         entry.ipAddresses.each do |tuple|
-          ttl, _ip_address = tuple
+          protocol_type, ttl, _ip_address = tuple
           next if starting_time > (entry.createdAt + ttl)
 
           ip_addresses << _ip_address
@@ -82,23 +130,22 @@ module DNS::Caching
       end
     end
 
-    def set(host : String, ip_address : Tuple(Time::Span, Socket::IPAddress))
-      ip_address_set = Set(Tuple(Time::Span, Socket::IPAddress)).new
+    def set(host : String, ip_address : Tuple(ProtocolType, Time::Span, Socket::IPAddress))
+      ip_address_set = Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)).new
       ip_address_set << ip_address
 
       set host: host, ip_addresses: ip_address_set
     end
 
-    def set(host : String, ip_addresses : Array(Tuple(Time::Span, Socket::IPAddress)))
+    def set(host : String, ip_addresses : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
       set host: host, ip_addresses: ip_addresses.to_set
     end
 
-    def set(host : String, ip_addresses : Set(Tuple(Time::Span, Socket::IPAddress)))
+    def set(host : String, ip_addresses : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
       return if ip_addresses.empty?
       inactive_entry_cleanup
 
-      entry = Entry.new ipAddresses: ip_addresses
-      @mutex.synchronize { entries[host] = entry }
+      @mutex.synchronize { entries[host] = Entry.new ipAddresses: ip_addresses }
     end
 
     private def inactive_entry_cleanup
@@ -133,21 +180,28 @@ module DNS::Caching
         end
 
         sorted_list = list.sort { |x, y| x.first <=> y.first }
-        sorted_list.each_with_index do |item, index|
+        sorted_list.each_with_index do |tuple, index|
           break if index > maximum_cleared
-          entries.delete item.last
+
+          {% if clear_type.id == "latest_visit" %}
+            latest_visit, host = list
+          {% elsif clear_type.id == "visits" %}
+            visits, host = list
+          {% end %}
+
+          entries.delete host
         end
       end
     end
     {% end %}
 
     struct Entry
-      property ipAddresses : Set(Tuple(Time::Span, Socket::IPAddress))
+      property ipAddresses : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
       property latestVisit : Time
       property createdAt : Time
       property visits : Atomic(Int64)
 
-      def initialize(@ipAddresses : Set(Tuple(Time::Span, Socket::IPAddress)))
+      def initialize(@ipAddresses : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
         @latestVisit = Time.local
         @createdAt = Time.local
         @visits = Atomic(Int64).new 0_i64

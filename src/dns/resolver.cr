@@ -20,16 +20,21 @@ class DNS::Resolver
   end
 
   private def __getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Socket::IPAddress))
-    ip_address_local = Socket::IPAddress.new address: host, port: port rescue nil
-    return Tuple.new FetchType::Local, [ip_address_local] if ip_address_local
+    fetch_type, ip_addresses = getaddrinfo_raw host: host, port: port, answer_safety_first: answer_safety_first
+    Tuple.new fetch_type, ip_addresses.map { |tuple| tuple.last }
+  end
 
-    mapperCaching.get?(host: host).try { |ip_addresses| return Tuple.new FetchType::Mapper, ip_addresses }
-    ipAddressCaching.get?(host: host, port: port).try { |ip_addresses| return Tuple.new FetchType::Caching, ip_addresses }
+  def getaddrinfo_raw(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
+    ip_address_local = Socket::IPAddress.new address: host, port: port rescue nil
+    return Tuple.new FetchType::Local, [Tuple.new ProtocolType::HTTPS, 10_i32.seconds, ip_address_local] if ip_address_local
+
+    mapperCaching.get_raw?(host: host).try { |ip_addresses| return Tuple.new FetchType::Mapper, ip_addresses.to_a }
+    ipAddressCaching.get_raw?(host: host, port: port).try { |ip_addresses| return Tuple.new FetchType::Caching, ip_addresses.to_a }
 
     protect_getaddrinfo host: host if options.addrinfo.enableProtection
-    ipAddressCaching.get?(host: host, port: port).try do |ip_addresses|
+    ipAddressCaching.get_raw?(host: host, port: port).try do |ip_addresses|
       getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
-      return Tuple.new FetchType::Caching, ip_addresses
+      return Tuple.new FetchType::Caching, ip_addresses.to_a
     end
 
     packets = getaddrinfo_query_ip_records dns_servers: dnsServers, host: host, class_type: Packet::ClassFlag::Internet
@@ -39,8 +44,14 @@ class DNS::Resolver
     ipAddressCaching.set host: host, ip_addresses: ip_addresses
     getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
 
-    return Tuple.new FetchType::Remote, ip_addresses.map { |tuple| tuple.last } if port.zero?
-    Tuple.new FetchType::Remote, ip_addresses.map { |tuple| Socket::IPAddress.new address: tuple.last.address, port: port }
+    return Tuple.new FetchType::Remote, ip_addresses.to_a if port.zero?
+
+    _ip_addresses = ip_addresses.map do |tuple|
+      protocol_type, ttl, ip_address = tuple
+      Tuple.new protocol_type, ttl, Socket::IPAddress.new(address: ip_address.address, port: port)
+    end
+
+    Tuple.new FetchType::Remote, _ip_addresses
   end
 
   private def protect_getaddrinfo(host : String)
@@ -55,30 +66,30 @@ class DNS::Resolver
     end
   end
 
-  def mapper_caching_set(host : String, value : Tuple(Time::Span, Socket::IPAddress) | Array(Tuple(Time::Span, Socket::IPAddress)) | Set(Tuple(Time::Span, Socket::IPAddress)))
+  def mapper_caching_set(host : String, value : Tuple(ProtocolType, Time::Span, Socket::IPAddress) | Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)) | Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
     case value
-    in Tuple(Time::Span, Socket::IPAddress)
+    in Tuple(ProtocolType, Time::Span, Socket::IPAddress)
       mapperCaching.set host: host, ip_address: value
-    in Array(Tuple(Time::Span, Socket::IPAddress))
+    in Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
       mapperCaching.set host: host, ip_addresses: value
-    in Set(Tuple(Time::Span, Socket::IPAddress))
+    in Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
       mapperCaching.set host: host, ip_addresses: value
     end
   end
 
-  def ip_address_caching_set(host : String, value : Tuple(Time::Span, Socket::IPAddress) | Array(Tuple(Time::Span, Socket::IPAddress)) | Set(Tuple(Time::Span, Socket::IPAddress)))
+  def ip_address_caching_set(host : String, value : Tuple(ProtocolType, Time::Span, Socket::IPAddress) | Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)) | Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
     case value
-    in Tuple(Time::Span, Socket::IPAddress)
+    in Tuple(ProtocolType, Time::Span, Socket::IPAddress)
       ipAddressCaching.set host: host, ip_address: value
-    in Array(Tuple(Time::Span, Socket::IPAddress))
+    in Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
       ipAddressCaching.set host: host, ip_addresses: value
-    in Set(Tuple(Time::Span, Socket::IPAddress))
+    in Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
       ipAddressCaching.set host: host, ip_addresses: value
     end
   end
 
-  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32, answer_safety_first : Bool = true) : Set(Tuple(Time::Span, Socket::IPAddress))
-    packets = packets.sort { |x, y| ~(x.protocolType <=> y.protocolType) } if answer_safety_first
+  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32, answer_safety_first : Bool = true) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
+    packets = packets.sort { |x, y| SafetyFlag.from_protocol(protocol_flag: x.protocolType) <=> SafetyFlag.from_protocol(protocol_flag: y.protocolType) } if answer_safety_first
 
     case options.addrinfo.filterType
     in .ipv4_only?
@@ -91,22 +102,22 @@ class DNS::Resolver
   end
 
   {% for record_type in ["a", "aaaa"] %}
-  def self.select_packet_answers_{{record_type.id}}_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(Time::Span, Socket::IPAddress))
-    ip_addresses = [] of Tuple(Time::Span, Socket::IPAddress)
+  def self.select_packet_answers_{{record_type.id}}_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
+    ip_addresses = [] of Tuple(ProtocolType, Time::Span, Socket::IPAddress)
 
     packets.each do |packet| 
       records = packet.select_answers_{{record_type.id}}_records! name: host, maximum_depth: maximum_depth rescue nil
       next unless records
 
-      records.each { |record| ip_addresses << Tuple.new record.ttl, record.address }
+      records.each { |record| ip_addresses << Tuple.new packet.protocolType, record.ttl, record.address }
     end
 
     ip_addresses.uniq { |entry| entry.last }.to_set
   end
   {% end %}
 
-  def self.select_packet_answers_ip_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(Time::Span, Socket::IPAddress))
-    ip_addresses = [] of Tuple(Time::Span, Socket::IPAddress)
+  def self.select_packet_answers_ip_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
+    ip_addresses = [] of Tuple(ProtocolType, Time::Span, Socket::IPAddress)
 
     packets.each do |packet|
       records = packet.select_answers_ip_records! name: host, maximum_depth: maximum_depth rescue nil
@@ -115,7 +126,7 @@ class DNS::Resolver
       records.each do |record|
         case record
         when Records::A, Records::AAAA
-          ip_addresses << Tuple.new record.ttl, record.address
+          ip_addresses << Tuple.new packet.protocolType, record.ttl, record.address
         end
       end
     end
@@ -401,6 +412,8 @@ class DNS::Resolver
     raise Exception.new String.build { |io| io << "Resolver.resolve!: The arType of the reply packet is not ARType::Reply!" } unless reply.arType.reply?
     raise Exception.new String.build { |io| io << "Resolver.resolve!: The transmissionId of the reply packet does not match the ask transmissionId!" } if ask_packet.transmissionId != reply.transmissionId
     raise Exception.new String.build { |io| io << "Resolver.resolve!: The errorType of the reply packet is not Packet::ErrorFlag::NoError!" } unless reply.errorType.no_error?
+
+    reply.protocolType = ProtocolType::HTTPS if protocol_type.https?
 
     reply
   end
