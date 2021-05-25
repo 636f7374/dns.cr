@@ -7,13 +7,13 @@ struct DNS::Options
 
   struct Socket
     property maximumNumberOfRetriesForPerIpAddress : UInt8
-    property maximumNumberOfRetriesForIpv4ConnectionFailure : Int32
-    property maximumNumberOfRetriesForIpv6ConnectionFailure : Int32
+    property maximumNumberOfRetriesForIpv4ConnectionFailure : UInt8
+    property maximumNumberOfRetriesForIpv6ConnectionFailure : UInt8
 
     def initialize
       @maximumNumberOfRetriesForPerIpAddress = 1_u8
-      @maximumNumberOfRetriesForIpv4ConnectionFailure = 2_i32
-      @maximumNumberOfRetriesForIpv6ConnectionFailure = 2_i32
+      @maximumNumberOfRetriesForIpv4ConnectionFailure = 2_u8
+      @maximumNumberOfRetriesForIpv6ConnectionFailure = 2_u8
     end
   end
 

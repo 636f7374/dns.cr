@@ -1,6 +1,6 @@
 class DNS::Resolver
   getter dnsServers : Set(Address)
-  property options : Options
+  getter options : Options
   getter ipAddressCaching : Caching::IPAddress
   getter packetCaching : Caching::Packet
   getter mapperCaching : Caching::IPAddress
@@ -12,29 +12,41 @@ class DNS::Resolver
     @mutex = Mutex.new :unchecked
   end
 
-  def getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Socket::IPAddress))
+  def options : Options
+    @options
+  end
+
+  def maximum_number_of_retries_for_ipv4_connection_failure(delegator : Symbol) : UInt8
+    options.socket.maximumNumberOfRetriesForIpv4ConnectionFailure
+  end
+
+  def maximum_number_of_retries_for_ipv6_connection_failure(delegator : Symbol) : UInt8
+    options.socket.maximumNumberOfRetriesForIpv6ConnectionFailure
+  end
+
+  def getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(Symbol, FetchType, Array(Socket::IPAddress))
     # This function is used as an overridable.
     # E.g. Cloudflare.
 
     __getaddrinfo host: host, port: port, answer_safety_first: answer_safety_first
   end
 
-  private def __getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Socket::IPAddress))
-    fetch_type, ip_addresses = getaddrinfo_raw host: host, port: port, answer_safety_first: answer_safety_first
-    Tuple.new fetch_type, ip_addresses.map { |tuple| tuple.last }
+  private def __getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(Symbol, FetchType, Array(Socket::IPAddress))
+    delegator, fetch_type, ip_addresses = getaddrinfo_raw host: host, port: port, answer_safety_first: answer_safety_first
+    Tuple.new delegator, fetch_type, ip_addresses.map { |tuple| tuple.last }
   end
 
-  def getaddrinfo_raw(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(FetchType, Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
+  def getaddrinfo_raw(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(Symbol, FetchType, Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
     ip_address_local = Socket::IPAddress.new address: host, port: port rescue nil
-    return Tuple.new FetchType::Local, [Tuple.new ProtocolType::HTTPS, 10_i32.seconds, ip_address_local] if ip_address_local
+    return Tuple.new :getaddrinfo_raw, FetchType::Local, [Tuple.new ProtocolType::HTTPS, 10_i32.seconds, ip_address_local] if ip_address_local
 
-    mapperCaching.get_raw?(host: host).try { |ip_addresses| return Tuple.new FetchType::Mapper, ip_addresses.to_a }
-    ipAddressCaching.get_raw?(host: host, port: port).try { |ip_addresses| return Tuple.new FetchType::Caching, ip_addresses.to_a }
+    mapperCaching.get_raw?(host: host).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Mapper, ip_addresses.to_a }
+    ipAddressCaching.get_raw?(host: host, port: port).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a }
 
     protect_getaddrinfo host: host if options.addrinfo.enableProtection
     ipAddressCaching.get_raw?(host: host, port: port).try do |ip_addresses|
       getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
-      return Tuple.new FetchType::Caching, ip_addresses.to_a
+      return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a
     end
 
     packets = getaddrinfo_query_ip_records dns_servers: dnsServers, host: host, class_type: Packet::ClassFlag::Internet
@@ -44,14 +56,14 @@ class DNS::Resolver
     ipAddressCaching.set host: host, ip_addresses: ip_addresses
     getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
 
-    return Tuple.new FetchType::Remote, ip_addresses.to_a if port.zero?
+    return Tuple.new :getaddrinfo_raw, FetchType::Remote, ip_addresses.to_a if port.zero?
 
     _ip_addresses = ip_addresses.map do |tuple|
       protocol_type, ttl, ip_address = tuple
       Tuple.new protocol_type, ttl, Socket::IPAddress.new(address: ip_address.address, port: port)
     end
 
-    Tuple.new FetchType::Remote, _ip_addresses
+    Tuple.new :getaddrinfo_raw, FetchType::Remote, _ip_addresses
   end
 
   private def protect_getaddrinfo(host : String)

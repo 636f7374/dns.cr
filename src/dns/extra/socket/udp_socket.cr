@@ -1,6 +1,6 @@
 class UDPSocket < IPSocket
   def connect(host : String, port : Int32, dns_resolver : DNS::Resolver, connect_timeout : Int | Time::Span | Nil = nil) : Bool
-    fetch_type, ip_addresses = dns_resolver.getaddrinfo host: host, port: port
+    delegator, fetch_type, ip_addresses = dns_resolver.getaddrinfo host: host, port: port
     raise Exception.new String.build { |io| io << "UDPSocket.connect: Unfortunately, DNS::Resolver.getaddrinfo! The host: (" << host << ") & fetchType: (" << fetch_type << ")" << " IPAddress result is empty!" } if ip_addresses.empty?
 
     connect_timeout_time_span = 10_i32.seconds
