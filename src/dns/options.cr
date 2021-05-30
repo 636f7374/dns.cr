@@ -24,6 +24,7 @@ struct DNS::Options
       Both     = 2_u8
     end
 
+    property answerStrictlySafe : Bool
     property answerSafetyFirst : Bool
     property maximumNumberOfMismatchRetries : Int32
     property enableProtection : Bool
@@ -34,6 +35,7 @@ struct DNS::Options
     property maximumDepthOfCanonicalName : Int32
 
     def initialize
+      @answerStrictlySafe = true
       @answerSafetyFirst = true
       @maximumNumberOfMismatchRetries = 3_i32
       @enableProtection = true

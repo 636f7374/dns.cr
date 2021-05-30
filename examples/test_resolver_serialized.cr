@@ -45,6 +45,7 @@ options:
     maximumNumberOfRetriesForIpv4ConnectionFailure: 6
     maximumNumberOfRetriesForIpv6ConnectionFailure: 2
   addrinfo:
+  	answerStrictlySafe: true
     answerSafetyFirst: true
     maximumNumberOfMismatchRetries: 3
     enableProtection: true

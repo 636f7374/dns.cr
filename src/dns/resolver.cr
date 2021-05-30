@@ -40,11 +40,11 @@ class DNS::Resolver
     ip_address_local = Socket::IPAddress.new address: host, port: port rescue nil
     return Tuple.new :getaddrinfo_raw, FetchType::Local, [Tuple.new ProtocolType::HTTPS, 10_i32.seconds, ip_address_local] if ip_address_local
 
-    mapperCaching.get_raw?(host: host).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Mapper, ip_addresses.to_a }
-    ipAddressCaching.get_raw?(host: host, port: port).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a }
+    mapperCaching.get_raw?(host: host, strictly_safe: options.addrinfo.answerStrictlySafe).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Mapper, ip_addresses.to_a }
+    ipAddressCaching.get_raw?(host: host, port: port, strictly_safe: options.addrinfo.answerStrictlySafe).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a }
 
     protect_getaddrinfo host: host if options.addrinfo.enableProtection
-    ipAddressCaching.get_raw?(host: host, port: port).try do |ip_addresses|
+    ipAddressCaching.get_raw?(host: host, port: port, strictly_safe: options.addrinfo.answerStrictlySafe).try do |ip_addresses|
       getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
       return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a
     end

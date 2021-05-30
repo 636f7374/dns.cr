@@ -34,7 +34,7 @@ module DNS::Caching
       interval > clearInterval
     end
 
-    def get_raw?(host : String, port : Int32) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
+    def get_raw?(host : String, port : Int32, strictly_safe : Bool = false) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
       starting_time = Time.local
 
       @mutex.synchronize do
@@ -44,13 +44,20 @@ module DNS::Caching
         entry.add_visits
         entries[host] = entry
 
+        secure_time_to_live_end = true
+        includes_secure = false
+
         _ip_addresses = entry.ipAddresses.map do |tuple|
           protocol_type, ttl, _ip_address = tuple
+
+          includes_secure = true if protocol_type.tls? || protocol_type.https?
           next if starting_time > (entry.createdAt + ttl)
 
+          secure_time_to_live_end = false
           Tuple.new protocol_type, ttl, Socket::IPAddress.new address: _ip_address.address, port: port
         end
 
+        return if strictly_safe && includes_secure && secure_time_to_live_end
         _ip_addresses = _ip_addresses.compact
         return if _ip_addresses.empty?
 
@@ -58,7 +65,7 @@ module DNS::Caching
       end
     end
 
-    def get?(host : String, port : Int32) : Array(Socket::IPAddress)?
+    def get?(host : String, port : Int32, strictly_safe : Bool = false) : Array(Socket::IPAddress)?
       starting_time = Time.local
 
       @mutex.synchronize do
@@ -69,20 +76,27 @@ module DNS::Caching
         entries[host] = entry
 
         ip_addresses = [] of Socket::IPAddress
+        secure_time_to_live_end = true
+        includes_secure = false
 
         entry.ipAddresses.each do |tuple|
           protocol_type, ttl, _ip_address = tuple
+
+          includes_secure = true if protocol_type.tls? || protocol_type.https?
           next if starting_time > (entry.createdAt + ttl)
 
+          secure_time_to_live_end = false
           ip_addresses << Socket::IPAddress.new address: _ip_address.address, port: port
         end
 
+        return if strictly_safe && includes_secure && secure_time_to_live_end
         return if ip_addresses.empty?
+
         ip_addresses
       end
     end
 
-    def get_raw?(host : String) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
+    def get_raw?(host : String, strictly_safe : Bool = false) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
       starting_time = Time.local
 
       @mutex.synchronize do
@@ -92,13 +106,20 @@ module DNS::Caching
         entry.add_visits
         entries[host] = entry
 
+        secure_time_to_live_end = true
+        includes_secure = false
+
         _ip_addresses = entry.ipAddresses.map do |tuple|
           protocol_type, ttl, _ip_address = tuple
+
+          includes_secure = true if protocol_type.tls? || protocol_type.https?
           next if starting_time > (entry.createdAt + ttl)
 
+          secure_time_to_live_end = false
           tuple
         end
 
+        return if strictly_safe && includes_secure && secure_time_to_live_end
         _ip_addresses = _ip_addresses.compact
         return if _ip_addresses.empty?
 
@@ -106,7 +127,7 @@ module DNS::Caching
       end
     end
 
-    def get?(host : String) : Array(Socket::IPAddress)?
+    def get?(host : String, strictly_safe : Bool = false) : Array(Socket::IPAddress)?
       starting_time = Time.local
 
       @mutex.synchronize do
@@ -120,12 +141,17 @@ module DNS::Caching
 
         entry.ipAddresses.each do |tuple|
           protocol_type, ttl, _ip_address = tuple
+
+          includes_secure = true if protocol_type.tls? || protocol_type.https?
           next if starting_time > (entry.createdAt + ttl)
 
+          secure_time_to_live_end = false
           ip_addresses << _ip_address
         end
 
+        return if strictly_safe && includes_secure && secure_time_to_live_end
         return if ip_addresses.empty?
+
         ip_addresses
       end
     end
