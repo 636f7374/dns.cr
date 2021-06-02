@@ -10,7 +10,7 @@ dns_servers << DNS::Address.new ipAddress: Socket::IPAddress.new("8.8.4.4", 853_
 dns_resolver = DNS::Resolver.new dnsServers: dns_servers, options: DNS::Options.new
 
 # Create TCPSocket
-socket = TCPSocket.new host: "www.example.com", port: 80_i32, dns_resolver: dns_resolver, delegator: nil, connect_timeout: 10_i32.seconds
+socket = TCPSocket.new host: "www.example.com", port: 80_i32, dns_resolver: dns_resolver, connect_timeout: 10_i32.seconds, delegator: nil
 
 # Send HTTP::Request
 http_request = HTTP::Request.new "GET", "http://www.example.com"

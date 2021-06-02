@@ -40,7 +40,6 @@ module DNS::Serialized
       struct Addrinfo
         include YAML::Serializable
 
-        property answerStrictlySafe : Bool
         property answerSafetyFirst : Bool
         property maximumNumberOfMismatchRetries : Int32
         property enableProtection : Bool
@@ -51,7 +50,6 @@ module DNS::Serialized
         property maximumDepthOfCanonicalName : Int32
 
         def initialize
-          @answerStrictlySafe = true
           @answerSafetyFirst = true
           @maximumNumberOfMismatchRetries = 3_i32
           @enableProtection = true
@@ -65,7 +63,6 @@ module DNS::Serialized
         def unwrap : DNS::Options::Addrinfo
           addrinfo = DNS::Options::Addrinfo.new
 
-          addrinfo.answerStrictlySafe = answerStrictlySafe
           addrinfo.answerSafetyFirst = answerSafetyFirst
           addrinfo.maximumNumberOfMismatchRetries = maximumNumberOfMismatchRetries
           addrinfo.enableProtection = enableProtection

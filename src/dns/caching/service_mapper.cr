@@ -1,14 +1,13 @@
 module DNS::Caching
-  class Packet
+  class ServiceMapper
     getter capacity : Int32
     getter clearInterval : Time::Span
     getter numberOfEntriesCleared : Int32
-    getter answerStrictlySafe : Bool
     getter entries : Hash(String, Entry)
     getter latestCleanedUp : Time
     getter mutex : Mutex
 
-    def initialize(@capacity : Int32 = 512_i32, @clearInterval : Time::Span = 3600_i32.seconds, @numberOfEntriesCleared : Int32 = ((capacity / 2_i32).to_i32 rescue 1_i32), @answerStrictlySafe : Bool = true)
+    def initialize(@capacity : Int32 = 512_i32, @clearInterval : Time::Span = 3600_i32.seconds, @numberOfEntriesCleared : Int32 = ((capacity / 2_i32).to_i32 rescue 1_i32))
       @entries = Hash(String, Entry).new
       @latestCleanedUp = Time.local
       @mutex = Mutex.new :unchecked
@@ -35,57 +34,38 @@ module DNS::Caching
       interval > clearInterval
     end
 
-    def get?(host : String, record_type : DNS::Packet::RecordFlag) : Array(DNS::Packet)?
+    def get?(host : String, port : Int32) : Entry?
       @mutex.synchronize do
-        return unless entry = entries[host]?
+        _address = String.build { |io| io << host << ':' << port }
+        return unless entry = entries[_address]?
 
         entry.refresh_latest_visit
         entry.add_visits
-        entries[host] = entry
+        entries[_address] = entry
 
-        {% begin %}
-          case record_type
-            {% for available_type in AvailableRecordFlags %}
-          when .{{available_type.downcase.id}}?
-            return if entry.{{available_type.downcase.id}}.empty?
-
-            packets = [] of DNS::Packet
-            entry.{{available_type.downcase.id}}.each { |packet| packets << packet }
-            packets
-            {% end %}
-          end
-        {% end %}
+        entry
       end
     end
 
-    def set(host : String, record_type : DNS::Packet::RecordFlag, packet : DNS::Packet)
-      packet_set = Set(DNS::Packet).new
-      packet_set << packet
+    def set(host : String, port : Int32, dns_server : DNS::Address, options : Entry::Options = Entry::Options.new)
+      dns_servers = Set(DNS::Packet).new
+      dns_servers << dns_server
 
-      set host: host, record_type: record_type, packets: packet_set
+      set host: host, port: port, dns_servers: dns_servers, options: options
     end
 
-    def set(host : String, record_type : DNS::Packet::RecordFlag, packets : Array(DNS::Packet))
-      set host: host, record_type: record_type, packets: packets.to_set
+    def set(host : String, port : Int32, dns_servers : Array(DNS::Address), options : Entry::Options = Entry::Options.new)
+      set host: host, port: port, dns_servers: dns_servers.to_set, options: options
     end
 
-    def set(host : String, record_type : DNS::Packet::RecordFlag, packets : Set(DNS::Packet))
-      return if packets.empty?
+    def set(host : String, port : Int32, dns_servers : Set(DNS::Address), options : Entry::Options = Entry::Options.new)
       inactive_entry_cleanup
 
       @mutex.synchronize do
-        entry = entries[host]? || Entry.new
+        _address = String.build { |io| io << host << ':' << port }
+        entry = entries[_address]? || Entry.new(dnsServers: dns_servers, options: options)
 
-        {% begin %}
-          case record_type
-            {% for available_type in AvailableRecordFlags %}
-          when .{{available_type.downcase.id}}?
-            entry.{{available_type.downcase.id}} = packets
-            {% end %}
-          end
-        {% end %}
-
-        entries[host] = entry
+        entries[_address] = entry
       end
     end
 
@@ -137,23 +117,15 @@ module DNS::Caching
     {% end %}
 
     struct Entry
+      property dnsServers : Set(DNS::Address)
+      property options : Options
       property latestVisit : Time
       property visits : Atomic(Int64)
 
-      def initialize
+      def initialize(@dnsServers : Set(DNS::Address), @options : Options = Options.new)
         @latestVisit = Time.local
         @visits = Atomic(Int64).new 0_i64
       end
-
-      {% for record_type in AvailableRecordFlags %}
-      def {{record_type.downcase.id}}=(value : Set(DNS::Packet))
-        @{{record_type.downcase.id}} = value
-      end
-
-      def {{record_type.downcase.id}} : Set(DNS::Packet)
-        @{{record_type.downcase.id}} ||= Set(DNS::Packet).new
-      end
-      {% end %}
 
       def add_visits
         @visits.add 1_i64
@@ -161,6 +133,14 @@ module DNS::Caching
 
       def refresh_latest_visit
         @latestVisit = Time.local
+      end
+
+      struct Options
+        getter answerSafetyFirst : Bool
+        getter overridable : Bool
+
+        def initialize(@answerSafetyFirst : Bool = true, @overridable : Bool = true)
+        end
       end
     end
   end

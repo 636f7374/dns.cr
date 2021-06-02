@@ -10,7 +10,7 @@ module DNS::Serialized
     end
 
     def unwrap : DNS::Resolver
-      DNS::Resolver.new dnsServers: unwrap_servers, options: unwrap_options, ipAddressCaching: caching.ipAddress.unwrap, packetCaching: caching.packet.unwrap, mapperCaching: caching.mapper.unwrap
+      DNS::Resolver.new dnsServers: unwrap_servers, options: unwrap_options, ipAddressCaching: caching.ipAddress.unwrap, packetCaching: caching.packet.unwrap, ipMapperCaching: caching.ipMapper.unwrap
     end
 
     def unwrap_servers : Set(DNS::Address)
@@ -32,8 +32,8 @@ module DNS::Serialized
       caching.ipAddress.unwrap
     end
 
-    def unwrap_caching_mapper : DNS::Caching::IPAddress
-      caching.mapper.unwrap
+    def unwrap_caching_ip_mapper : DNS::Caching::IPAddress
+      caching.ipMapper.unwrap
     end
 
     def unwrap_options : DNS::Options

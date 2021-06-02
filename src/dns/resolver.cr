@@ -1,13 +1,14 @@
 class DNS::Resolver
   getter dnsServers : Set(Address)
   getter options : Options
+  getter serviceMapperCaching : Caching::ServiceMapper
   getter ipAddressCaching : Caching::IPAddress
   getter packetCaching : Caching::Packet
-  getter mapperCaching : Caching::IPAddress
+  getter ipMapperCaching : Caching::IPAddress
   getter getAddrinfoProtector : GetAddrinfoProtector
   getter mutex : Mutex
 
-  def initialize(@dnsServers : Set(Address), @options : Options = Options.new, @ipAddressCaching : Caching::IPAddress = Caching::IPAddress.new, @packetCaching : Caching::Packet = Caching::Packet.new, @mapperCaching : Caching::IPAddress = Caching::IPAddress.new)
+  def initialize(@dnsServers : Set(Address), @options : Options = Options.new, @serviceMapperCaching : Caching::ServiceMapper = Caching::ServiceMapper.new, @ipAddressCaching : Caching::IPAddress = Caching::IPAddress.new, @packetCaching : Caching::Packet = Caching::Packet.new, @ipMapperCaching : Caching::IPAddress = Caching::IPAddress.new)
     @getAddrinfoProtector = GetAddrinfoProtector.new
     @mutex = Mutex.new :unchecked
   end
@@ -24,38 +25,46 @@ class DNS::Resolver
     options.socket.maximumNumberOfRetriesForIpv6ConnectionFailure
   end
 
-  def getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(Symbol, FetchType, Array(Socket::IPAddress))
+  def getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool? = options.addrinfo.answerSafetyFirst, addrinfo_overridable : Bool? = nil) : Tuple(Symbol, FetchType, Array(Socket::IPAddress))
     # This function is used as an overridable.
     # E.g. Cloudflare.
 
-    __getaddrinfo host: host, port: port, answer_safety_first: answer_safety_first
+    __getaddrinfo host: host, port: port, answer_safety_first: answer_safety_first, addrinfo_overridable: addrinfo_overridable
   end
 
-  private def __getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(Symbol, FetchType, Array(Socket::IPAddress))
-    delegator, fetch_type, ip_addresses = getaddrinfo_raw host: host, port: port, answer_safety_first: answer_safety_first
+  private def __getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool? = options.addrinfo.answerSafetyFirst, addrinfo_overridable : Bool? = nil) : Tuple(Symbol, FetchType, Array(Socket::IPAddress))
+    delegator, fetch_type, ip_addresses = getaddrinfo_raw host: host, port: port, answer_safety_first: answer_safety_first, addrinfo_overridable: addrinfo_overridable
     Tuple.new delegator, fetch_type, ip_addresses.map { |tuple| tuple.last }
   end
 
-  def getaddrinfo_raw(host : String, port : Int32 = 0_i32, answer_safety_first : Bool = options.addrinfo.answerSafetyFirst) : Tuple(Symbol, FetchType, Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
+  def getaddrinfo_raw(host : String, port : Int32 = 0_i32, answer_safety_first : Bool? = options.addrinfo.answerSafetyFirst, addrinfo_overridable : Bool? = nil) : Tuple(Symbol, FetchType, Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
+    service_mapper_entry = serviceMapperCaching.get? host: host, port: port
+    answer_safety_first = service_mapper_entry.options.answerSafetyFirst if service_mapper_entry
+
     ip_address_local = Socket::IPAddress.new address: host, port: port rescue nil
     return Tuple.new :getaddrinfo_raw, FetchType::Local, [Tuple.new ProtocolType::HTTPS, 10_i32.seconds, ip_address_local] if ip_address_local
 
-    mapperCaching.get_raw?(host: host, strictly_safe: options.addrinfo.answerStrictlySafe).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Mapper, ip_addresses.to_a }
-    ipAddressCaching.get_raw?(host: host, port: port, strictly_safe: options.addrinfo.answerStrictlySafe).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a }
+    ipMapperCaching.get_raw?(host: host, answer_safety_first: answer_safety_first).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Mapper, ip_addresses.to_a }
+    ipAddressCaching.get_raw?(host: host, port: port, answer_safety_first: answer_safety_first).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a }
 
     protect_getaddrinfo host: host if options.addrinfo.enableProtection
-    ipAddressCaching.get_raw?(host: host, port: port, strictly_safe: options.addrinfo.answerStrictlySafe).try do |ip_addresses|
+
+    ipAddressCaching.get_raw?(host: host, port: port, answer_safety_first: answer_safety_first).try do |ip_addresses|
       getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
       return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a
     end
 
-    packets = getaddrinfo_query_ip_records dns_servers: dnsServers, host: host, class_type: Packet::ClassFlag::Internet
-    ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets,
-      maximum_depth: options.addrinfo.maximumDepthOfCanonicalName, answer_safety_first: answer_safety_first
+    dns_servers = service_mapper_entry.try &.dnsServers
+    dns_servers = nil if dns_servers.try &.empty?
+    dns_servers = dnsServers unless dns_servers
+
+    packets = getaddrinfo_query_ip_records dns_servers: dns_servers, host: host, class_type: Packet::ClassFlag::Internet
+    ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets, maximum_depth: options.addrinfo.maximumDepthOfCanonicalName
 
     ipAddressCaching.set host: host, ip_addresses: ip_addresses
     getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
 
+    ip_addresses = ip_addresses.to_a.sort { |x, y| SafetyFlag.from_protocol(protocol_flag: x.first) <=> SafetyFlag.from_protocol(protocol_flag: y.first) }.to_set if answer_safety_first
     return Tuple.new :getaddrinfo_raw, FetchType::Remote, ip_addresses.to_a if port.zero?
 
     _ip_addresses = ip_addresses.map do |tuple|
@@ -78,14 +87,25 @@ class DNS::Resolver
     end
   end
 
-  def mapper_caching_set(host : String, value : Tuple(ProtocolType, Time::Span, Socket::IPAddress) | Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)) | Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
+  def service_mapper_caching_set(host : String, port : Int32, value : DNS::Address | Array(DNS::Address) | Set(DNS::Address), options : Caching::ServiceMapper::Entry::Options = Caching::ServiceMapper::Entry::Options.new)
+    case value
+    in DNS::Address
+      serviceMapperCaching.set host: host, port: port, dns_server: value, options: options
+    in Array(DNS::Address)
+      serviceMapperCaching.set host: host, port: port, dns_servers: value, options: options
+    in Set(DNS::Address)
+      serviceMapperCaching.set host: host, port: port, dns_servers: value, options: options
+    end
+  end
+
+  def ip_mapper_caching_set(host : String, value : Tuple(ProtocolType, Time::Span, Socket::IPAddress) | Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)) | Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
     case value
     in Tuple(ProtocolType, Time::Span, Socket::IPAddress)
-      mapperCaching.set host: host, ip_address: value
+      ipMapperCaching.set host: host, ip_address: value
     in Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
-      mapperCaching.set host: host, ip_addresses: value
+      ipMapperCaching.set host: host, ip_addresses: value
     in Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
-      mapperCaching.set host: host, ip_addresses: value
+      ipMapperCaching.set host: host, ip_addresses: value
     end
   end
 
@@ -100,9 +120,7 @@ class DNS::Resolver
     end
   end
 
-  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32, answer_safety_first : Bool = true) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
-    packets = packets.sort { |x, y| SafetyFlag.from_protocol(protocol_flag: x.protocolType) <=> SafetyFlag.from_protocol(protocol_flag: y.protocolType) } if answer_safety_first
-
+  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
     case options.addrinfo.filterType
     in .ipv4_only?
       Resolver.select_packet_answers_a_records_ip_addresses host: host, packets: packets, maximum_depth: maximum_depth

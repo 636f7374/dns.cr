@@ -45,7 +45,6 @@ options:
     maximumNumberOfRetriesForIpv4ConnectionFailure: 6
     maximumNumberOfRetriesForIpv6ConnectionFailure: 2
   addrinfo:
-  	answerStrictlySafe: true
     answerSafetyFirst: true
     maximumNumberOfMismatchRetries: 3
     enableProtection: true
@@ -55,18 +54,25 @@ options:
     filterType: ipv4_only
     maximumDepthOfCanonicalName: 64
 caching:
+  serviceMapper:
+    capacity: 512
+    clearInterval: 3600
+    numberOfEntriesCleared: 256
   ipAddress:
     capacity: 512
     clearInterval: 3600
     numberOfEntriesCleared: 256
-  mapper:
+    answerStrictlySafe: true
+  ipMapper:
     capacity: 512
     clearInterval: 3600
     numberOfEntriesCleared: 256
+    answerStrictlySafe: true
   packet:
     capacity: 512
     clearInterval: 3600
-    numberOfEntriesCleared: 256)
+    numberOfEntriesCleared: 256
+    answerStrictlySafe: true)
 
 serialized = DNS::Serialized::Resolver.from_yaml text
 STDOUT.puts [serialized.unwrap]

@@ -10,8 +10,8 @@ class TCPSocket < IPSocket
     end
   end
 
-  def self.new(host : String, port : Int32, dns_resolver : DNS::Resolver, delegator : Symbol? = nil, connect_timeout : Int | Time::Span | Nil = nil) : TCPSocket
-    _delegator, fetch_type, ip_addresses = dns_resolver.getaddrinfo host: host, port: port
+  def self.new(host : String, port : Int32, dns_resolver : DNS::Resolver, connect_timeout : Int | Time::Span | Nil = nil, delegator : Symbol? = nil, answer_safety_first : Bool? = nil, addrinfo_overridable : Bool? = nil) : TCPSocket
+    _delegator, fetch_type, ip_addresses = dns_resolver.getaddrinfo host: host, port: port, answer_safety_first: answer_safety_first, addrinfo_overridable: addrinfo_overridable
     raise Exception.new String.build { |io| io << "TCPSocket.new: Unfortunately, DNS::Resolver.getaddrinfo! The host: (" << host << ") & fetchType: (" << fetch_type << ")" << " IPAddress result is empty!" } if ip_addresses.empty?
 
     connect_timeout_time_span = 10_i32.seconds
