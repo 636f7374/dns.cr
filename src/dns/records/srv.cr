@@ -11,7 +11,7 @@ struct DNS::Records
     def initialize(@name : String, @classType : Packet::ClassFlag, @ttl : Time::Span, @priority : UInt16, @weight : UInt16, @port : UInt16, @target : String)
     end
 
-    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : SRV
+    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : SRV
       class_type = read_class_type! io: io
       ttl = read_ttl! io: io, buffer: buffer
       data_length = read_data_length! io: io
@@ -27,7 +27,7 @@ struct DNS::Records
         raise Exception.new String.build { |io| io << "SRV.from_io: Failed to read options Bytes from IO, Because: (" << ex.message << ")." }
       end
 
-      target = decode_name! protocol_type: protocol_type, io: data_length_buffer, buffer: buffer, maximum_depth: maximum_depth
+      target = decode_name! protocol_type: protocol_type, io: data_length_buffer, buffer: buffer, options: options
       new name: name, classType: class_type, ttl: ttl.seconds, priority: priority, weight: weight, port: port, target: target
     end
 
@@ -49,9 +49,9 @@ struct DNS::Records
       temporary
     end
 
-    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : String
+    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : String
       begin
-        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth
+        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, options: options
       rescue ex
         raise Exception.new String.build { |io| io << "SRV.decode_name!: Compress.decode! failed, Because: (" << ex.message << ")." }
       end

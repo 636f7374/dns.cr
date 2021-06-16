@@ -59,7 +59,7 @@ class DNS::Resolver
     dns_servers = dnsServers unless dns_servers
 
     packets = getaddrinfo_query_ip_records dns_servers: dns_servers, host: host, class_type: Packet::ClassFlag::Internet
-    ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets, maximum_depth: options.addrinfo.maximumDepthOfCanonicalName
+    ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets, options: options
 
     ipAddressCaching.set host: host, ip_addresses: ip_addresses
     getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
@@ -120,23 +120,23 @@ class DNS::Resolver
     end
   end
 
-  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
+  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), options : Options = Options.new) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
     case options.addrinfo.filterType
     in .ipv4_only?
-      Resolver.select_packet_answers_a_records_ip_addresses host: host, packets: packets, maximum_depth: maximum_depth
+      Resolver.select_packet_answers_a_records_ip_addresses host: host, packets: packets, options: options
     in .ipv6_only?
-      Resolver.select_packet_answers_aaaa_records_ip_addresses host: host, packets: packets, maximum_depth: maximum_depth
+      Resolver.select_packet_answers_aaaa_records_ip_addresses host: host, packets: packets, options: options
     in .both?
-      Resolver.select_packet_answers_ip_records_ip_addresses host: host, packets: packets, maximum_depth: maximum_depth
+      Resolver.select_packet_answers_ip_records_ip_addresses host: host, packets: packets, options: options
     end
   end
 
   {% for record_type in ["a", "aaaa"] %}
-  def self.select_packet_answers_{{record_type.id}}_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
+  def self.select_packet_answers_{{record_type.id}}_records_ip_addresses(host : String, packets : Array(Packet), options : Options = Options.new) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
     ip_addresses = [] of Tuple(ProtocolType, Time::Span, Socket::IPAddress)
 
     packets.each do |packet| 
-      records = packet.select_answers_{{record_type.id}}_records! name: host, maximum_depth: maximum_depth rescue nil
+      records = packet.select_answers_{{record_type.id}}_records! name: host, options: options rescue nil
       next unless records
 
       records.each { |record| ip_addresses << Tuple.new packet.protocolType, record.ttl, record.address }
@@ -146,11 +146,11 @@ class DNS::Resolver
   end
   {% end %}
 
-  def self.select_packet_answers_ip_records_ip_addresses(host : String, packets : Array(Packet), maximum_depth : Int32 = 64_i32) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
+  def self.select_packet_answers_ip_records_ip_addresses(host : String, packets : Array(Packet), options : Options = Options.new) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
     ip_addresses = [] of Tuple(ProtocolType, Time::Span, Socket::IPAddress)
 
     packets.each do |packet|
-      records = packet.select_answers_ip_records! name: host, maximum_depth: maximum_depth rescue nil
+      records = packet.select_answers_ip_records! name: host, options: options rescue nil
       next unless records
 
       records.each do |record|
@@ -407,7 +407,7 @@ class DNS::Resolver
     raise Exception.new "Resolver.resolve!: DNS query failed, zero bytes have been received!" if received_length.zero?
 
     memory = IO::Memory.new buffer.to_slice[0_i32, received_length]
-    reply = Packet.from_io protocol_type: protocol_type, io: memory
+    reply = Packet.from_io protocol_type: protocol_type, io: memory, options: options
 
     raise Exception.new String.build { |io| io << "Resolver.resolve!: DNS query failed, Possibly because the server is not responding!" } unless reply.arType.reply?
     raise Exception.new String.build { |io| io << "Resolver.resolve!: The transmissionId of the reply packet does not match the ask transmissionId!" } if ask_packet.transmissionId != reply.transmissionId
@@ -436,7 +436,7 @@ class DNS::Resolver
     raise Exception.new "Resolver.resolve!: DNS query failed, zero bytes have been read!" if read_length.zero?
 
     memory = IO::Memory.new buffer.to_slice[0_i32, read_length]
-    reply = Packet.from_io protocol_type: _protocol_type, io: memory
+    reply = Packet.from_io protocol_type: _protocol_type, io: memory, options: options
 
     raise Exception.new String.build { |io| io << "Resolver.resolve!: DNS query failed, Possibly because the server is not responding!" } unless reply
     raise Exception.new String.build { |io| io << "Resolver.resolve!: The arType of the reply packet is not ARType::Reply!" } unless reply.arType.reply?
@@ -454,5 +454,6 @@ class DNS::Resolver
   end
 end
 
+require "http/request"
 require "./resolver/*"
 require "./caching/*"

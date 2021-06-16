@@ -7,14 +7,14 @@ struct DNS::Records
     def initialize(@name : String, @classType : Packet::ClassFlag, @ttl : Time::Span, @mailExchange : String, @preference : UInt16)
     end
 
-    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : MX
+    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : MX
       class_type = read_class_type! io: io
       ttl = read_ttl! io: io, buffer: buffer
       data_length = read_data_length! io: io
       preference = read_preference! io: io
 
       set_buffer! buffer: buffer, class_type: class_type, ttl: ttl, data_length: data_length, preference: preference
-      mail_exchange = decode_name! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth
+      mail_exchange = decode_name! protocol_type: protocol_type, io: io, buffer: buffer, options: options
 
       new name: name, classType: class_type, ttl: ttl.seconds, mailExchange: mail_exchange, preference: preference
     end
@@ -37,9 +37,9 @@ struct DNS::Records
       end
     end
 
-    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : String
+    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : String
       begin
-        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth
+        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, options: options
       rescue ex
         raise Exception.new String.build { |io| io << "MX.decode_name!: Compress.decode! failed, Because: (" << ex.message << ")." }
       end

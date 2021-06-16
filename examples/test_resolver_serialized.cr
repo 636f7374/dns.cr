@@ -52,7 +52,14 @@ options:
     concurrentQuery: true
     queryType: ipv4_only
     filterType: ipv4_only
+  packet:
+    maximumCountOfQuestion: 128
+    maximumCountOfAnswer: 128
+    maximumCountOfAuthority: 128
+    maximumCountOfAdditional: 128
     maximumDepthOfCanonicalName: 64
+    maximumSizeOfPerChunk: 2048
+    maximumSizeOfPacket: 65535
 caching:
   serviceMapper:
     capacity: 512

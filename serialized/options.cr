@@ -5,12 +5,13 @@ module DNS::Serialized
 
       property socket : Socket
       property addrinfo : Addrinfo
+      property packet : Packet
 
-      def initialize(@socket : Socket = Socket.new, @addrinfo : Addrinfo = Addrinfo.new)
+      def initialize(@socket : Socket = Socket.new, @addrinfo : Addrinfo = Addrinfo.new, @packet : Packet = Packet.new)
       end
 
       def unwrap : DNS::Options
-        DNS::Options.new socket: socket.unwrap, addrinfo: addrinfo.unwrap
+        DNS::Options.new socket: socket.unwrap, addrinfo: addrinfo.unwrap, packet: packet.unwrap
       end
 
       struct Socket
@@ -47,7 +48,6 @@ module DNS::Serialized
         property concurrentQuery : Bool
         property queryType : DNS::Options::Addrinfo::FilterType
         property filterType : DNS::Options::Addrinfo::FilterType
-        property maximumDepthOfCanonicalName : Int32
 
         def initialize
           @answerSafetyFirst = true
@@ -57,7 +57,6 @@ module DNS::Serialized
           @concurrentQuery = true
           @queryType = DNS::Options::Addrinfo::FilterType::Ipv4Only
           @filterType = DNS::Options::Addrinfo::FilterType::Ipv4Only
-          @maximumDepthOfCanonicalName = 64_i32
         end
 
         def unwrap : DNS::Options::Addrinfo
@@ -70,9 +69,44 @@ module DNS::Serialized
           addrinfo.concurrentQuery = concurrentQuery
           addrinfo.queryType = queryType
           addrinfo.filterType = filterType
-          addrinfo.maximumDepthOfCanonicalName = maximumDepthOfCanonicalName
 
           addrinfo
+        end
+      end
+
+      struct Packet
+        include YAML::Serializable
+
+        property maximumCountOfQuestion : UInt16
+        property maximumCountOfAnswer : UInt16
+        property maximumCountOfAuthority : UInt16
+        property maximumCountOfAdditional : UInt16
+        property maximumDepthOfCanonicalName : UInt8
+        property maximumSizeOfPerChunk : UInt16
+        property maximumSizeOfPacket : UInt16
+
+        def initialize
+          @maximumCountOfQuestion = 128_u16
+          @maximumCountOfAnswer = 128_u16
+          @maximumCountOfAuthority = 128_u16
+          @maximumCountOfAdditional = 128_u16
+          @maximumDepthOfCanonicalName = 64_u8
+          @maximumSizeOfPerChunk = 2048_u16
+          @maximumSizeOfPacket = 65535_u16
+        end
+
+        def unwrap : DNS::Options::Packet
+          packet = DNS::Options::Packet.new
+
+          packet.maximumCountOfQuestion = maximumCountOfQuestion
+          packet.maximumCountOfAnswer = maximumCountOfAnswer
+          packet.maximumCountOfAuthority = maximumCountOfAuthority
+          packet.maximumCountOfAdditional = maximumCountOfAdditional
+          packet.maximumDepthOfCanonicalName = maximumDepthOfCanonicalName
+          packet.maximumSizeOfPerChunk = maximumSizeOfPerChunk
+          packet.maximumSizeOfPacket = maximumSizeOfPacket
+
+          packet
         end
       end
     end

@@ -1,8 +1,9 @@
 struct DNS::Options
   property socket : Socket
   property addrinfo : Addrinfo
+  property packet : Packet
 
-  def initialize(@socket : Socket = Socket.new, @addrinfo : Addrinfo = Addrinfo.new)
+  def initialize(@socket : Socket = Socket.new, @addrinfo : Addrinfo = Addrinfo.new, @packet : Packet = Packet.new)
   end
 
   struct Socket
@@ -32,7 +33,6 @@ struct DNS::Options
     property concurrentQuery : Bool
     property queryType : FilterType
     property filterType : FilterType
-    property maximumDepthOfCanonicalName : Int32
 
     def initialize
       @answerStrictlySafe = true
@@ -43,7 +43,26 @@ struct DNS::Options
       @concurrentQuery = true
       @queryType = FilterType::Ipv4Only
       @filterType = FilterType::Ipv4Only
-      @maximumDepthOfCanonicalName = 64_i32
+    end
+  end
+
+  struct Packet
+    property maximumCountOfQuestion : UInt16
+    property maximumCountOfAnswer : UInt16
+    property maximumCountOfAuthority : UInt16
+    property maximumCountOfAdditional : UInt16
+    property maximumDepthOfCanonicalName : UInt8
+    property maximumSizeOfPerChunk : UInt16
+    property maximumSizeOfPacket : UInt16
+
+    def initialize
+      @maximumCountOfQuestion = 128_u16
+      @maximumCountOfAnswer = 128_u16
+      @maximumCountOfAuthority = 128_u16
+      @maximumCountOfAdditional = 128_u16
+      @maximumDepthOfCanonicalName = 64_u8
+      @maximumSizeOfPerChunk = 2048_u16
+      @maximumSizeOfPacket = 65535_u16
     end
   end
 end

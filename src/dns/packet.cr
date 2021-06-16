@@ -222,16 +222,16 @@ struct DNS::Packet
     packet
   end
 
-  def self.from_slice(protocol_type : ProtocolType, slice : Bytes, buffer : IO::Memory = IO::Memory.new) : Packet
+  def self.from_slice(protocol_type : ProtocolType, slice : Bytes, buffer : IO::Memory = IO::Memory.new, options : Options = Options.new) : Packet
     slice_io = IO::Memory.new slice
-    from_io protocol_type: protocol_type, io: slice_io, buffer: buffer
+    from_io protocol_type: protocol_type, io: slice_io, buffer: buffer, options: options
   end
 
-  def self.from_io(protocol_type : ProtocolType, io : IO, buffer : IO::Memory = IO::Memory.new) : Packet
+  def self.from_io(protocol_type : ProtocolType, io : IO, buffer : IO::Memory = IO::Memory.new, options : Options = Options.new) : Packet
     case protocol_type
     when .udp?
     when ProtocolType::TCP, ProtocolType::TLS
-      packet_length = read_packet_length! protocol_type: protocol_type, io: io
+      packet_size = read_packet_size! protocol_type: protocol_type, io: io
     end
 
     transmission_id = read_transmission_id! io: io
@@ -239,7 +239,9 @@ struct DNS::Packet
 
     packet = decode_integer_flags! protocol_type: protocol_type, flags: flags
     packet = update_record_count! io: io, packet: packet
-    set_buffer buffer: buffer, packet_length: packet_length, transmission_id: transmission_id, flags: flags, packet: packet
+    check_threshold! packet_size: packet_size, packet: packet, options: options
+
+    set_buffer buffer: buffer, packet_size: packet_size, transmission_id: transmission_id, flags: flags, packet: packet
 
     packet.questionCount.times { packet.queries << Sections::Question.from_io protocol_type: protocol_type, io: io, buffer: buffer }
     packet.answerCount.times { packet.answers << Sections::Answer.from_io protocol_type: protocol_type, io: io, buffer: buffer }
@@ -378,10 +380,10 @@ struct DNS::Packet
   end
 
   {% for record_type in ["a", "aaaa"] %}
-  def select_answers_{{record_type.id}}_records!(name : String, maximum_depth : Int32 = 64_i32) : Array(Records::{{record_type.upcase.id}})
+  def select_answers_{{record_type.id}}_records!(name : String, options : Options = Options.new) : Array(Records::{{record_type.upcase.id}})
     raise Exception.new String.build {|io| io << "Packet.select_answers_" << {{record_type.id.stringify}} << "_records!: Unfortunately, answers is empty!" } if answers.empty?
 
-    _maximum_depth = maximum_depth.dup
+    _maximum_depth = options.packet.maximumDepthOfCanonicalName.dup
     _maximum_depth += 1_i32
 
     while !(_maximum_depth -= 1_i32).zero?
@@ -399,17 +401,17 @@ struct DNS::Packet
     end
 
     message = String.build do |io| 
-      io << "Packet.select_answers_" << {{record_type.id.stringify}} << "_records!: " << "After (" << maximum_depth << ") attempts, no any " << {{record_type.upcase.id.stringify}} << " record was found!"
+      io << "Packet.select_answers_" << {{record_type.id.stringify}} << "_records!: " << "After (" << options.packet.maximumDepthOfCanonicalName << ") attempts, no any " << {{record_type.upcase.id.stringify}} << " record was found!"
     end
 
     raise Exception.new message
   end
   {% end %}
 
-  def select_answers_ip_records!(name : String, maximum_depth : Int32 = 64_i32) : Array(Records)
+  def select_answers_ip_records!(name : String, options : Options = Options.new) : Array(Records)
     raise Exception.new String.build { |io| io << "Packet.select_answers_ip_records!: Unfortunately, answers is empty!" } if answers.empty?
 
-    _maximum_depth = maximum_depth.dup
+    _maximum_depth = options.packet.maximumDepthOfCanonicalName.dup
     _maximum_depth += 1_i32
 
     while !(_maximum_depth -= 1_i32).zero?
@@ -421,11 +423,11 @@ struct DNS::Packet
       end
     end
 
-    message = String.build { |io| io << "Packet.select_answers_ip_records!: " << "After (" << maximum_depth << ") attempts, no A or AAAA record was found!" }
+    message = String.build { |io| io << "Packet.select_answers_ip_records!: " << "After (" << options.packet.maximumDepthOfCanonicalName << ") attempts, no A or AAAA record was found!" }
     raise Exception.new message
   end
 
-  private def self.read_packet_length!(protocol_type : ProtocolType, io : IO) : UInt16?
+  private def self.read_packet_size!(protocol_type : ProtocolType, io : IO) : UInt16?
     begin
       io.read_bytes UInt16, IO::ByteFormat::BigEndian
     rescue ex
@@ -482,14 +484,22 @@ struct DNS::Packet
     packet
   end
 
-  private def self.set_buffer(buffer : IO::Memory, packet_length : UInt16?, transmission_id : UInt16, flags : UInt16, packet : Packet)
-    buffer.write_bytes packet_length, IO::ByteFormat::BigEndian if packet_length
+  private def self.set_buffer(buffer : IO::Memory, packet_size : UInt16?, transmission_id : UInt16, flags : UInt16, packet : Packet)
+    buffer.write_bytes packet_size, IO::ByteFormat::BigEndian if packet_size
     buffer.write_bytes transmission_id, IO::ByteFormat::BigEndian
     buffer.write_bytes flags, IO::ByteFormat::BigEndian
     buffer.write_bytes packet.questionCount, IO::ByteFormat::BigEndian
     buffer.write_bytes packet.answerCount, IO::ByteFormat::BigEndian
     buffer.write_bytes packet.authorityCount, IO::ByteFormat::BigEndian
     buffer.write_bytes packet.additionalCount, IO::ByteFormat::BigEndian
+  end
+
+  private def self.check_threshold!(packet_size : UInt16?, packet : Packet, options : Options)
+    raise Exception.new String.build { |io| io << "Packet.check_threshold!: Packet size (" << packet_size << ") is greater than Options.packet.maximumSizeOfPacket (" << options.packet.maximumSizeOfPacket << ")." } if packet_size && packet_size > options.packet.maximumSizeOfPacket
+    raise Exception.new String.build { |io| io << "Packet.check_threshold!: Packet.questionCount (" << packet.questionCount << ") is greater than Options.packet.maximumCountOfQuestion (" << options.packet.maximumCountOfQuestion << ")." } if packet.questionCount > options.packet.maximumCountOfQuestion
+    raise Exception.new String.build { |io| io << "Packet.check_threshold!: Packet.answerCount (" << packet.answerCount << ") is greater than Options.packet.maximumCountOfAnswer (" << options.packet.maximumCountOfAnswer << ")." } if packet.answerCount > options.packet.maximumCountOfAnswer
+    raise Exception.new String.build { |io| io << "Packet.check_threshold!: Packet.authorityCount (" << packet.authorityCount << ") is greater than Options.packet.maximumCountOfAuthority (" << options.packet.maximumCountOfAuthority << ")." } if packet.authorityCount > options.packet.maximumCountOfAuthority
+    raise Exception.new String.build { |io| io << "Packet.check_threshold!: Packet.additionalCount (" << packet.additionalCount << ") is greater than Options.packet.maximumCountOfAdditional (" << options.packet.maximumCountOfAdditional << ")." } if packet.additionalCount > options.packet.maximumCountOfAdditional
   end
 end
 

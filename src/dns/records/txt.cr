@@ -8,7 +8,7 @@ struct DNS::Records
     def initialize(@name : String, @classType : Packet::ClassFlag, @ttl : Time::Span, @txt : String)
     end
 
-    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : TXT
+    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : TXT
       class_type = read_class_type! io: io
       ttl = read_ttl! io: io, buffer: buffer
       data_length = read_data_length! io: io

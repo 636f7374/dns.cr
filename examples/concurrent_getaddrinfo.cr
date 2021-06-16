@@ -13,7 +13,7 @@ dns_resolver = DNS::Resolver.new dnsServers: dns_servers, options: DNS::Options.
 concurrent_mutex = Mutex.new :unchecked
 concurrent_fibers = Set(Fiber).new
 reply_mutex = Mutex.new :unchecked
-reply_packets = Set(Tuple(String, Time::Span, Tuple(DNS::FetchType, Array(Socket::IPAddress)))).new
+reply_packets = Set(Tuple(String, Time::Span, Tuple(Symbol, DNS::FetchType, Array(Socket::IPAddress)))).new
 
 main_concurrent_fibers = spawn do
   rust_query_fiber = spawn do

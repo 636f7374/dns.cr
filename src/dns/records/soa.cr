@@ -15,7 +15,7 @@ struct DNS::Records
                    @refreshInterval : UInt32, @retryInterval : UInt32, @expireLimit : UInt32, @minimiumTimeToLive : UInt32)
     end
 
-    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : SOA
+    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : SOA
       class_type = read_class_type! io: io
       ttl = read_ttl! io: io, buffer: buffer
       data_length = read_data_length! io: io
@@ -23,7 +23,7 @@ struct DNS::Records
       set_buffer! buffer: buffer, class_type: class_type, ttl: ttl, data_length: data_length
       name = "<Root>" if name.empty?
       data_length_buffer = read_data_length_buffer! io: io, buffer: buffer, length: data_length
-      primary_name_server, authority_mail_box = decode_values! protocol_type: protocol_type, data_buffer: data_length_buffer, buffer: buffer, maximum_depth: maximum_depth
+      primary_name_server, authority_mail_box = decode_values! protocol_type: protocol_type, data_buffer: data_length_buffer, buffer: buffer, options: options
 
       begin
         serial_number = data_length_buffer.read_bytes UInt32, IO::ByteFormat::BigEndian
@@ -57,15 +57,15 @@ struct DNS::Records
       temporary
     end
 
-    private def self.decode_values!(protocol_type : ProtocolType, data_buffer : IO::Memory, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : Tuple(String, String)
-      primary_name_server = decode_name! protocol_type: protocol_type, io: data_buffer, buffer: buffer, maximum_depth: maximum_depth
-      authority_mail_box = decode_name! protocol_type: protocol_type, io: data_buffer, buffer: buffer, maximum_depth: maximum_depth
+    private def self.decode_values!(protocol_type : ProtocolType, data_buffer : IO::Memory, buffer : IO::Memory, options : Options = Options.new) : Tuple(String, String)
+      primary_name_server = decode_name! protocol_type: protocol_type, io: data_buffer, buffer: buffer, options: options
+      authority_mail_box = decode_name! protocol_type: protocol_type, io: data_buffer, buffer: buffer, options: options
       Tuple.new primary_name_server, authority_mail_box
     end
 
-    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32) : String
+    private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : String
       begin
-        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, maximum_depth: maximum_depth
+        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, options: options
       rescue ex
         raise Exception.new String.build { |io| io << "SOA.decode_name!: Compress.decode! failed, Because: (" << ex.message << ")." }
       end

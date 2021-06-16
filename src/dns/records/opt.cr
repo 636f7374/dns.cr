@@ -9,7 +9,7 @@ struct DNS::Records
     def initialize(@name : String, @udpPayloadSize : UInt16, @higherBitsExtendedRcode : UInt8, @edns0Version : UInt8, @z : UInt16)
     end
 
-    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, maximum_length : UInt16 = 512_u16) : OPT
+    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new, maximum_length : UInt16 = 512_u16) : OPT
       udp_payload_size = read_udp_payload_size! io: io
       higher_bits_extended_rcode = read_higher_bits_extended_rcode! io: io
       edns0_version = read_edns0_version! io: io

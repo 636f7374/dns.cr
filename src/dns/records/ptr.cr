@@ -8,13 +8,13 @@ struct DNS::Records
     def initialize(@name : String, @classType : Packet::ClassFlag, @ttl : Time::Span, @domainName : String)
     end
 
-    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, maximum_depth : Int32 = 65_i32, maximum_length : UInt16 = 512_u16) : PTR
+    def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new, maximum_length : UInt16 = 512_u16) : PTR
       class_type = read_class_type! io: io
       ttl = read_ttl! io: io, buffer: buffer
       data_length = read_data_length! io: io
 
       set_buffer! buffer: buffer, class_type: class_type, ttl: ttl, data_length: data_length
-      domain_name = Compress.decode_by_length! protocol_type: protocol_type, io: io, length: data_length, buffer: buffer, maximum_depth: maximum_depth, maximum_length: maximum_length
+      domain_name = Compress.decode_by_length! protocol_type: protocol_type, io: io, length: data_length, buffer: buffer, options: options, maximum_length: maximum_length
 
       new name: name, classType: class_type, ttl: ttl.seconds, domainName: domain_name
     end
