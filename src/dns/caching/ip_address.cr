@@ -36,10 +36,9 @@ module DNS::Caching
     end
 
     def get_raw?(host : String, port : Int32, answer_safety_first : Bool? = nil) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
-      starting_time = Time.local
-
       @mutex.synchronize do
         return unless entry = entries[host]?
+        starting_time = Time.local
 
         entry.refresh_latest_visit
         entry.add_visits
@@ -72,10 +71,9 @@ module DNS::Caching
     end
 
     def get_raw?(host : String, answer_safety_first : Bool? = nil) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
-      starting_time = Time.local
-
       @mutex.synchronize do
         return unless entry = entries[host]?
+        starting_time = Time.local
 
         entry.refresh_latest_visit
         entry.add_visits

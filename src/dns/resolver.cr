@@ -6,26 +6,24 @@ class DNS::Resolver
   getter packetCaching : Caching::Packet
   getter ipMapperCaching : Caching::IPAddress
   getter getAddrinfoProtector : GetAddrinfoProtector
-  getter mutex : Mutex
 
   def initialize(@dnsServers : Set(Address), @options : Options = Options.new, @serviceMapperCaching : Caching::ServiceMapper = Caching::ServiceMapper.new, @ipAddressCaching : Caching::IPAddress = Caching::IPAddress.new, @packetCaching : Caching::Packet = Caching::Packet.new, @ipMapperCaching : Caching::IPAddress = Caching::IPAddress.new)
     @getAddrinfoProtector = GetAddrinfoProtector.new
-    @mutex = Mutex.new :unchecked
   end
 
   def options : Options
     @options
   end
 
-  def maximum_number_of_retries_for_ipv4_connection_failure(delegator : Symbol) : UInt8
+  def maximum_number_of_retries_for_ipv4_connection_failure(caller : Symbol?, delegator : Symbol) : UInt8
     options.socket.maximumNumberOfRetriesForIpv4ConnectionFailure
   end
 
-  def maximum_number_of_retries_for_ipv6_connection_failure(delegator : Symbol) : UInt8
+  def maximum_number_of_retries_for_ipv6_connection_failure(caller : Symbol?, delegator : Symbol) : UInt8
     options.socket.maximumNumberOfRetriesForIpv6ConnectionFailure
   end
 
-  def getaddrinfo(host : String, port : Int32 = 0_i32, answer_safety_first : Bool? = options.addrinfo.answerSafetyFirst, addrinfo_overridable : Bool? = nil) : Tuple(Symbol, FetchType, Array(Socket::IPAddress))
+  def getaddrinfo(host : String, port : Int32 = 0_i32, caller : Symbol? = nil, answer_safety_first : Bool? = options.addrinfo.answerSafetyFirst, addrinfo_overridable : Bool? = nil) : Tuple(Symbol, FetchType, Array(Socket::IPAddress))
     # This function is used as an overridable.
     # E.g. Cloudflare.
 
