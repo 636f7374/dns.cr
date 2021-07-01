@@ -50,11 +50,13 @@ module DNS::Caching
 
         _ip_addresses = entry.ipAddresses.map do |tuple|
           protocol_type, ttl, _ip_address = tuple
+          next if (entry.createdAt + ttl) <= starting_time
 
-          includes_secure = true if protocol_type.tls? || protocol_type.https?
-          next if starting_time > (entry.createdAt + ttl)
+          if protocol_type.tls? || protocol_type.https?
+            includes_secure = true
+            secure_time_to_live_end = false
+          end
 
-          secure_time_to_live_end = false
           Tuple.new protocol_type, ttl, Socket::IPAddress.new address: _ip_address.address, port: port
         end
 
@@ -85,11 +87,13 @@ module DNS::Caching
 
         _ip_addresses = entry.ipAddresses.map do |tuple|
           protocol_type, ttl, _ip_address = tuple
+          next if (entry.createdAt + ttl) <= starting_time
 
-          includes_secure = true if protocol_type.tls? || protocol_type.https?
-          next if starting_time > (entry.createdAt + ttl)
+          if protocol_type.tls? || protocol_type.https?
+            includes_secure = true
+            secure_time_to_live_end = false
+          end
 
-          secure_time_to_live_end = false
           tuple
         end
 
