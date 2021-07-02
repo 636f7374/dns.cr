@@ -35,7 +35,7 @@ module DNS::Caching
       interval > clearInterval
     end
 
-    def get_raw?(host : String, port : Int32, answer_safety_first : Bool? = nil) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
+    def get_raw?(host : String, port : Int32? = nil, answer_safety_first : Bool? = nil) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
       @mutex.synchronize do
         return unless entry = entries[host]?
         starting_time = Time.local
@@ -46,21 +46,17 @@ module DNS::Caching
 
         entry.ipAddresses = entry.ip_addresses_sort_by_protocol if answer_safety_first
         secure_time_to_live_end = true
-        includes_secure = false
 
         _ip_addresses = entry.ipAddresses.map do |tuple|
           protocol_type, ttl, _ip_address = tuple
           next if (entry.createdAt + ttl) <= starting_time
+          secure_time_to_live_end = false if protocol_type.tls? || protocol_type.https?
 
-          if protocol_type.tls? || protocol_type.https?
-            includes_secure = true
-            secure_time_to_live_end = false
-          end
-
+          next tuple unless port
           Tuple.new protocol_type, ttl, Socket::IPAddress.new address: _ip_address.address, port: port
         end
 
-        return if answerStrictlySafe && includes_secure && secure_time_to_live_end
+        return if answerStrictlySafe && secure_time_to_live_end
         _ip_addresses = _ip_addresses.compact
         return if _ip_addresses.empty?
 
@@ -70,39 +66,6 @@ module DNS::Caching
 
     def get?(host : String, port : Int32, answer_safety_first : Bool? = nil) : Array(Socket::IPAddress)?
       get_raw?(host: host, port: port, answer_safety_first: answer_safety_first).try &.map { |item| item.last }
-    end
-
-    def get_raw?(host : String, answer_safety_first : Bool? = nil) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
-      @mutex.synchronize do
-        return unless entry = entries[host]?
-        starting_time = Time.local
-
-        entry.refresh_latest_visit
-        entry.add_visits
-        entries[host] = entry
-
-        entry.ipAddresses = entry.ip_addresses_sort_by_protocol if answer_safety_first
-        secure_time_to_live_end = true
-        includes_secure = false
-
-        _ip_addresses = entry.ipAddresses.map do |tuple|
-          protocol_type, ttl, _ip_address = tuple
-          next if (entry.createdAt + ttl) <= starting_time
-
-          if protocol_type.tls? || protocol_type.https?
-            includes_secure = true
-            secure_time_to_live_end = false
-          end
-
-          tuple
-        end
-
-        return if answerStrictlySafe && includes_secure && secure_time_to_live_end
-        _ip_addresses = _ip_addresses.compact
-        return if _ip_addresses.empty?
-
-        _ip_addresses
-      end
     end
 
     def get?(host : String, answer_safety_first : Bool? = nil) : Array(Socket::IPAddress)?
