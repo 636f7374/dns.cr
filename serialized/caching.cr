@@ -22,11 +22,18 @@ module DNS::Serialized
         property answerStrictlySafe : Bool
       {% end %}
 
+      {% if type == "ip_address" || type == "ip_mapper" %}
+        property answerStrictlyIpv6 : Bool
+      {% end %}
+
       {% if type == "service_mapper" %}
         def initialize(@capacity : Int32 = 512_i32, @clearInterval : Int32 = 3600_i32, @numberOfEntriesCleared : Int32 = 256_i32)
         end
-      {% else %}
+      {% elsif type == "packet" %}
         def initialize(@capacity : Int32 = 512_i32, @clearInterval : Int32 = 3600_i32, @numberOfEntriesCleared : Int32 = 256_i32, @answerStrictlySafe : Bool = true)
+        end
+      {% else %}
+        def initialize(@capacity : Int32 = 512_i32, @clearInterval : Int32 = 3600_i32, @numberOfEntriesCleared : Int32 = 256_i32, @answerStrictlySafe : Bool = true, @answerStrictlyIpv6 : Bool = true)
         end
       {% end %}
 
@@ -36,7 +43,7 @@ module DNS::Serialized
         {% elsif type == "service_mapper" %}
           DNS::Caching::ServiceMapper.new capacity: capacity, clearInterval: clearInterval.seconds, numberOfEntriesCleared: numberOfEntriesCleared
         {% else %}
-          DNS::Caching::IPAddress.new capacity: capacity, clearInterval: clearInterval.seconds, numberOfEntriesCleared: numberOfEntriesCleared, answerStrictlySafe: answerStrictlySafe
+          DNS::Caching::IPAddress.new capacity: capacity, clearInterval: clearInterval.seconds, numberOfEntriesCleared: numberOfEntriesCleared, answerStrictlySafe: answerStrictlySafe, answerStrictlyIpv6: answerStrictlyIpv6
         {% end %}
       end
     end

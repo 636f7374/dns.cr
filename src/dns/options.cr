@@ -19,30 +19,40 @@ struct DNS::Options
   end
 
   struct Addrinfo
-    enum FilterType : UInt8
-      Ipv4Only = 0_u8
-      Ipv6Only = 1_u8
-      Both     = 2_u8
+    enum QueryFlag : UInt8
+      IPV4_ONLY = 2_u8
+      IPV6_ONLY = 3_u8
+      BOTH      = 4_u8
+    end
+
+    enum FilterFlag : UInt8
+      IPV4_FIRST = 0_u8
+      IPV6_FIRST = 1_u8
+      IPV4_ONLY  = 2_u8
+      IPV6_ONLY  = 3_u8
+      BOTH       = 4_u8
     end
 
     property answerStrictlySafe : Bool
+    property answerStrictlyIpv6 : Bool
     property answerSafetyFirst : Bool
     property maximumNumberOfMismatchRetries : Int32
     property enableProtection : Bool
     property protectionWaitingTime : Time::Span
     property concurrentQuery : Bool
-    property queryType : FilterType
-    property filterType : FilterType
+    property queryType : QueryFlag
+    property filterType : FilterFlag
 
     def initialize
       @answerStrictlySafe = true
+      @answerStrictlyIpv6 = true
       @answerSafetyFirst = true
       @maximumNumberOfMismatchRetries = 3_i32
       @enableProtection = true
       @protectionWaitingTime = 5_i32.seconds
       @concurrentQuery = true
-      @queryType = FilterType::Ipv4Only
-      @filterType = FilterType::Ipv4Only
+      @queryType = QueryFlag::IPV4_ONLY
+      @filterType = FilterFlag::IPV4_ONLY
     end
   end
 

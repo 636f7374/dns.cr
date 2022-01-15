@@ -1,6 +1,6 @@
 class Socket
   struct Addrinfo
-    def self.build_addrinfo(ip_address : IPAddress, family, type, protocol, &block : Addrinfo ->)
+    def self.build_addrinfo(ip_address : IPAddress, family : Family, type : Type, protocol : Protocol, &block : Addrinfo ->)
       ip_address_size = ip_address.size.to_u8
       service = ip_address.port
 
@@ -28,13 +28,13 @@ class Socket
     end
 
     def self.build_tcp(ip_address : IPAddress, family = Family::UNSPEC)
-      build_addrinfo ip_address, family, Type::STREAM, Protocol::TCP do |addrinfo|
+      build_addrinfo ip_address: ip_address, family: family, type: Type::STREAM, protocol: Protocol::TCP do |addrinfo|
         yield addrinfo
       end
     end
 
     def self.build_udp(ip_address : IPAddress, family = Family::UNSPEC)
-      build_addrinfo ip_address, family, Type::DGRAM, Protocol::UDP do |addrinfo|
+      build_addrinfo ip_address: ip_address, family: family, type: Type::DGRAM, protocol: Protocol::UDP do |addrinfo|
         yield addrinfo
       end
     end

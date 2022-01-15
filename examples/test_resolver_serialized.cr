@@ -3,14 +3,48 @@ require "../serialized/serialized.cr"
 require "../serialized/*"
 
 text = %(servers:
-  - ipAddress: 8.8.4.4:53
+  - ipAddress: 8.8.8.8:53
+    timeout:
+      read: 2
+      write: 2
+      connect: 2
     protocolType: udp
+
+
+
+  - ipAddress: 8.8.4.4:53
     timeout:
       read: 2
       write: 2
       connect: 2
-  - ipAddress: 8.8.4.4:853
-    protocolType: tls
+    protocolType: tcp
+
+
+
+  - ipAddress: 8.8.8.8:53
+    method: GET
+    path: /dns-query
+    parameters:
+      - parameter_a: B
+      - parameter_b: C
+      - dns:
+    headers:
+      - Accept: application/dns-message
+      - Host: 8.8.8.8:53
+    timeout:
+      read: 2
+      write: 2
+      connect: 2
+    protocolType: http
+
+
+
+  - ipAddress: 8.8.4.4:53
+    method: GET
+    path: /dns-query?dns=
+    headers:
+      - Accept: application/dns-message
+      - Host: 8.8.8.8:53
     timeout:
       read: 2
       write: 2
@@ -24,8 +58,11 @@ text = %(servers:
         - no_tls_v1
         - no_tls_v1_1
         - no_tls_v1_2
+    protocolType: https
+
+
+
   - ipAddress: 8.8.8.8:853
-    protocolType: tls
     timeout:
       read: 2
       write: 2
@@ -39,6 +76,7 @@ text = %(servers:
         - no_tls_v1
         - no_tls_v1_1
         - no_tls_v1_2
+    protocolType: tls
 options:
   socket:
     maximumNumberOfRetriesForPerIpAddress: 1
@@ -70,11 +108,13 @@ caching:
     clearInterval: 3600
     numberOfEntriesCleared: 256
     answerStrictlySafe: true
+    answerStrictlyIpv6: true
   ipMapper:
     capacity: 512
     clearInterval: 3600
     numberOfEntriesCleared: 256
     answerStrictlySafe: true
+    answerStrictlyIpv6: true
   packet:
     capacity: 512
     clearInterval: 3600

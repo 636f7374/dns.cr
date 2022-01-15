@@ -3,11 +3,16 @@ class UDPSocket < IPSocket
     delegator, fetch_type, ip_addresses = dns_resolver.getaddrinfo host: host, port: port
     raise Exception.new String.build { |io| io << "UDPSocket.connect: Unfortunately, DNS::Resolver.getaddrinfo! The host: (" << host << ") & fetchType: (" << fetch_type << ")" << " IPAddress result is empty!" } if ip_addresses.empty?
 
-    connect_timeout_time_span = 10_i32.seconds
-    connect_timeout_time_span = connect_timeout if connect_timeout.is_a? Time::Span
-    connect_timeout_time_span = connect_timeout.seconds if connect_timeout.is_a? Int
-    connect_timeout_time_span = 10_i32.seconds if 1_i32.seconds > connect_timeout_time_span
+    connect_timeout_time_span = case _connect_timeout = connect_timeout
+                                in Time::Span
+                                  _connect_timeout
+                                in Int
+                                  _connect_timeout.seconds
+                                in Nil
+                                  10_i32.seconds
+                                end
 
+    connect_timeout_time_span = 10_i32.seconds if 1_i32.seconds > connect_timeout_time_span
     attempt_connect_timeout_span = connect_timeout_time_span.dup
     attempt_connect_timeout_integer = (attempt_connect_timeout_span.to_i / ip_addresses.size) rescue 2_i64
     attempt_connect_timeout_integer = 2_i64 if 1_i64 > attempt_connect_timeout_integer

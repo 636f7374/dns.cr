@@ -46,8 +46,8 @@ module DNS::Serialized
         property enableProtection : Bool
         property protectionWaitingTime : UInt8
         property concurrentQuery : Bool
-        property queryType : DNS::Options::Addrinfo::FilterType
-        property filterType : DNS::Options::Addrinfo::FilterType
+        property queryType : DNS::Options::Addrinfo::QueryFlag
+        property filterType : DNS::Options::Addrinfo::FilterFlag
 
         def initialize
           @answerSafetyFirst = true
@@ -55,8 +55,8 @@ module DNS::Serialized
           @enableProtection = true
           @protectionWaitingTime = 5_u8
           @concurrentQuery = true
-          @queryType = DNS::Options::Addrinfo::FilterType::Ipv4Only
-          @filterType = DNS::Options::Addrinfo::FilterType::Ipv4Only
+          @queryType = DNS::Options::Addrinfo::QueryFlag::IPV4_ONLY
+          @filterType = DNS::Options::Addrinfo::FilterFlag::IPV4_ONLY
         end
 
         def unwrap : DNS::Options::Addrinfo

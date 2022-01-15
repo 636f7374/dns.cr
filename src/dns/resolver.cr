@@ -42,12 +42,17 @@ class DNS::Resolver
     ip_address_local = Socket::IPAddress.new address: host, port: port rescue nil
     return Tuple.new :getaddrinfo_raw, FetchType::Local, [Tuple.new ProtocolType::HTTPS, 10_i32.seconds, ip_address_local] if ip_address_local
 
-    ipMapperCaching.get_raw?(host: host, answer_safety_first: answer_safety_first).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Mapper, ip_addresses.to_a }
-    ipAddressCaching.get_raw?(host: host, port: port, answer_safety_first: answer_safety_first).try { |ip_addresses| return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a }
+    ipMapperCaching.get_raw?(host: host, answer_safety_first: answer_safety_first, filter_type: options.addrinfo.filterType).try do |ip_addresses|
+      return Tuple.new :getaddrinfo_raw, FetchType::Mapper, ip_addresses.to_a
+    end
+
+    ipAddressCaching.get_raw?(host: host, port: port, answer_safety_first: answer_safety_first, filter_type: options.addrinfo.filterType).try do |ip_addresses|
+      return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a
+    end
 
     protect_getaddrinfo host: host if options.addrinfo.enableProtection
 
-    ipAddressCaching.get_raw?(host: host, port: port, answer_safety_first: answer_safety_first).try do |ip_addresses|
+    ipAddressCaching.get_raw?(host: host, port: port, answer_safety_first: answer_safety_first, filter_type: options.addrinfo.filterType).try do |ip_addresses|
       getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
       return Tuple.new :getaddrinfo_raw, FetchType::Caching, ip_addresses.to_a
     end
@@ -59,17 +64,10 @@ class DNS::Resolver
     packets = getaddrinfo_query_ip_records dns_servers: dns_servers, host: host, class_type: Packet::ClassFlag::Internet
     ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets, options: options
 
-    ipAddressCaching.set host: host, ip_addresses: ip_addresses
+    caching_entry = ipAddressCaching.set host: host, ipv4_addresses: ip_addresses.first, ipv6_addresses: ip_addresses.last
     getAddrinfoProtector.delete host: host if options.addrinfo.enableProtection
 
-    ip_addresses = ip_addresses.to_a.sort { |x, y| SafetyFlag.from_protocol(protocol_flag: x.first) <=> SafetyFlag.from_protocol(protocol_flag: y.first) }.to_set if answer_safety_first
-    return Tuple.new :getaddrinfo_raw, FetchType::Remote, ip_addresses.to_a if port.zero?
-
-    _ip_addresses = ip_addresses.map do |tuple|
-      protocol_type, ttl, ip_address = tuple
-      Tuple.new protocol_type, ttl, Socket::IPAddress.new(address: ip_address.address, port: port)
-    end
-
+    _ip_addresses = caching_entry.get_sort_ipaddresses answer_safety_first: answer_safety_first, filter_type: options.addrinfo.filterType, port: port
     Tuple.new :getaddrinfo_raw, FetchType::Remote, _ip_addresses
   end
 
@@ -96,42 +94,54 @@ class DNS::Resolver
     end
   end
 
+  def ip_mapper_caching_set(host : String, ipv4_addresses : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)), ipv6_addresses : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
+    ipMapperCaching.set host: host, ipv4_addresses: ipv4_addresses, ipv6_addresses: ipv6_addresses
+  end
+
   def ip_mapper_caching_set(host : String, value : Tuple(ProtocolType, Time::Span, Socket::IPAddress) | Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)) | Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
     case value
     in Tuple(ProtocolType, Time::Span, Socket::IPAddress)
-      ipMapperCaching.set host: host, ip_address: value
+      ipMapperCaching.set host: host, ipv4_address: value, ipv6_address: nil
     in Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
-      ipMapperCaching.set host: host, ip_addresses: value
+      ipMapperCaching.set host: host, ipv4_addresses: value, ipv6_addresses: [] of Tuple(ProtocolType, Time::Span, Socket::IPAddress)
     in Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
-      ipMapperCaching.set host: host, ip_addresses: value
+      ipMapperCaching.set host: host, ipv4_addresses: value, ipv6_addresses: Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)).new
     end
   end
 
   def ip_address_caching_set(host : String, value : Tuple(ProtocolType, Time::Span, Socket::IPAddress) | Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress)) | Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
     case value
     in Tuple(ProtocolType, Time::Span, Socket::IPAddress)
-      ipAddressCaching.set host: host, ip_address: value
+      ipAddressCaching.set host: host, ipv4_address: value, ipv6_address: nil
     in Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
-      ipAddressCaching.set host: host, ip_addresses: value
+      ipAddressCaching.set host: host, ipv4_addresses: value, ipv6_addresses: [] of Tuple(ProtocolType, Time::Span, Socket::IPAddress)
     in Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
-      ipAddressCaching.set host: host, ip_addresses: value
+      ipAddressCaching.set host: host, ipv4_addresses: value, ipv6_addresses: Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)).new
     end
   end
 
-  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), options : Options = Options.new) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
+  private def select_packet_answers_records_ip_addresses(host : String, packets : Array(Packet), options : Options = Options.new) : Tuple(Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)), Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
+    empty_tuple_set = Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)).new
+
     case options.addrinfo.filterType
-    in .ipv4_only?
-      Resolver.select_packet_answers_a_records_ip_addresses host: host, packets: packets, options: options
-    in .ipv6_only?
-      Resolver.select_packet_answers_aaaa_records_ip_addresses host: host, packets: packets, options: options
-    in .both?
-      Resolver.select_packet_answers_ip_records_ip_addresses host: host, packets: packets, options: options
+    when .ipv4_only?
+      ipv4_ipaddresses = Resolver.select_packet_answers_a_records_ip_addresses host: host, packets: packets, options: options
+      Tuple.new ipv4_ipaddresses, empty_tuple_set
+    when .ipv6_only?
+      ipv6_ipaddresses = Resolver.select_packet_answers_aaaa_records_ip_addresses host: host, packets: packets, options: options
+      Tuple.new empty_tuple_set, ipv6_ipaddresses
+    else
+      ipv4_ipaddresses = Resolver.select_packet_answers_a_records_ip_addresses host: host, packets: packets, options: options
+      ipv6_ipaddresses = Resolver.select_packet_answers_aaaa_records_ip_addresses host: host, packets: packets, options: options
+
+      Tuple.new ipv4_ipaddresses, ipv6_ipaddresses
     end
   end
 
   {% for record_type in ["a", "aaaa"] %}
   def self.select_packet_answers_{{record_type.id}}_records_ip_addresses(host : String, packets : Array(Packet), options : Options = Options.new) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
     ip_addresses = [] of Tuple(ProtocolType, Time::Span, Socket::IPAddress)
+    ip_addresses_protocol_type_list = Hash(Socket::IPAddress, ProtocolType).new
 
     packets.each do |packet| 
       records = packet.select_answers_{{record_type.id}}_records! name: host, options: options rescue nil
@@ -140,12 +150,27 @@ class DNS::Resolver
       records.each { |record| ip_addresses << Tuple.new packet.protocolType, record.ttl, record.address }
     end
 
-    ip_addresses.uniq { |entry| entry.last }.to_set
+    ip_addresses.each do |tuple|
+      ip_address_protocol_type = ip_addresses_protocol_type_list[tuple.last]?
+      next if ip_address_protocol_type.https? || ip_address_protocol_type.tls? if ip_address_protocol_type
+
+      ip_addresses_protocol_type_list[tuple.last] = tuple.first
+    end
+
+    uniq_ip_addresses = ip_addresses.uniq { |tuple| tuple.last }
+
+    value = uniq_ip_addresses.map do |tuple|
+      protocol_type, ttl, ip_address = tuple
+      Tuple.new (ip_addresses_protocol_type_list[tuple.last]? || tuple.first), ttl, ip_address
+    end
+
+    value.to_set
   end
   {% end %}
 
   def self.select_packet_answers_ip_records_ip_addresses(host : String, packets : Array(Packet), options : Options = Options.new) : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
     ip_addresses = [] of Tuple(ProtocolType, Time::Span, Socket::IPAddress)
+    ip_addresses_protocol_type_list = Hash(Socket::IPAddress, ProtocolType).new
 
     packets.each do |packet|
       records = packet.select_answers_ip_records! name: host, options: options rescue nil
@@ -159,7 +184,21 @@ class DNS::Resolver
       end
     end
 
-    ip_addresses.uniq { |entry| entry.last }.to_set
+    ip_addresses.each do |tuple|
+      ip_address_protocol_type = ip_addresses_protocol_type_list[tuple.last]?
+      next if ip_address_protocol_type.https? || ip_address_protocol_type.tls? if ip_address_protocol_type
+
+      ip_addresses_protocol_type_list[tuple.last] = tuple.first
+    end
+
+    uniq_ip_addresses = ip_addresses.uniq { |tuple| tuple.last }
+
+    value = uniq_ip_addresses.map do |tuple|
+      protocol_type, ttl, ip_address = tuple
+      Tuple.new (ip_addresses_protocol_type_list[tuple.last]? || tuple.first), ttl, ip_address
+    end
+
+    value.to_set
   end
 
   private def getaddrinfo_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
@@ -415,18 +454,17 @@ class DNS::Resolver
   end
 
   private def resolve!(dns_server : Address, socket : TCPSocket | OpenSSL::SSL::Socket::Client, ask_packet : Packet, protocol_type : ProtocolType) : Packet
-    case protocol_type
-    when .tls?
-      socket.write ask_packet.to_slice
-      _protocol_type = protocol_type
-    else
-      request = HTTP::Request.new method: "GET", resource: String.build { |io| io << "/dns-query?dns=" << Base64.strict_encode(String.new(ask_packet.to_slice)) }
-      request.headers.add key: "Accept", value: "application/dns-message"
-      request.headers.add key: "Host", value: String.build { |io| io << dns_server.ipAddress.address << ':' << dns_server.ipAddress.port }
+    case dns_server
+    when Address::HTTP, Address::HTTPS
+      request = HTTP::Request.new method: dns_server.method, resource: String.build { |io| io << dns_server.resource << Base64.strict_encode(String.new(ask_packet.to_slice)) }
+      request.headers = dns_server.headers
       request.to_io io: socket
 
       HTTP::Client::Response.from_io io: socket, ignore_body: true
       _protocol_type = ProtocolType::UDP
+    else
+      socket.write ask_packet.to_slice
+      _protocol_type = protocol_type
     end
 
     buffer = uninitialized UInt8[4096_i32]

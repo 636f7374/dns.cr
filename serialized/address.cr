@@ -1,23 +1,20 @@
 module DNS::Serialized
-  struct Address
+  abstract struct Address
     include YAML::Serializable
 
-    property ipAddress : String
-    property protocolType : DNS::ProtocolType
-    property timeout : TimeOut
-    property tls : TransportLayerSecurity?
+    getter protocolType : String
 
-    def initialize(@ipAddress : String = "8.8.8.8:53", @protocolType : DNS::ProtocolType = DNS::ProtocolType::UDP, @timeout : TimeOut = TimeOut.new, @tls : TransportLayerSecurity? = nil)
-    end
+    abstract def ipAddress : String
+    abstract def timeout : TimeOut
+    abstract def unwrap : DNS::Address?
 
-    def unwrap : DNS::Address?
-      address, delimiter, port = ipAddress.rpartition ':'
-      return unless _port = port.to_i?
-      ip_address = Socket::IPAddress.new address: address, port: _port rescue nil
-      return unless ip_address
-
-      DNS::Address.new ipAddress: ip_address, protocolType: protocolType, timeout: timeout.unwrap, tls: tls.try &.unwrap
-    end
+    use_yaml_discriminator "protocolType", {
+      "udp"   => UDP,
+      "tcp"   => TCP,
+      "tls"   => TLS,
+      "http"  => HTTP,
+      "https" => HTTPS,
+    }
 
     struct TransportLayerSecurity
       include YAML::Serializable
@@ -52,3 +49,5 @@ module DNS::Serialized
     end
   end
 end
+
+require "./address/*"

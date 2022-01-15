@@ -1,48 +1,8 @@
-struct DNS::Address
-  property ipAddress : Socket::IPAddress
-  property protocolType : ProtocolType
-  property timeout : TimeOut
-  property tls : TransportLayerSecurity?
-
-  def initialize(@ipAddress : Socket::IPAddress, @protocolType : ProtocolType = ProtocolType::UDP, @timeout : TimeOut = TimeOut.new, @tls : TransportLayerSecurity? = nil)
-  end
-
-  def create_socket! : Tuple(OpenSSL::SSL::Context::Client?, UDPSocket | TCPSocket | OpenSSL::SSL::Socket::Client)
-    case protocolType
-    when .udp?
-      socket = UDPSocket.new family: ipAddress.family
-      socket.read_timeout = timeout.read
-      socket.write_timeout = timeout.write
-      socket.connect ip_address: ipAddress, connect_timeout: timeout.connect
-
-      Tuple.new nil, socket
-    when ProtocolType::TCP, ProtocolType::HTTP
-      socket = TCPSocket.new ip_address: ipAddress, connect_timeout: timeout.connect
-      socket.read_timeout = timeout.read
-      socket.write_timeout = timeout.write
-
-      Tuple.new nil, socket
-    else
-      context = tls.try &.unwrap || OpenSSL::SSL::Context::Client.new
-
-      socket = TCPSocket.new ip_address: ipAddress, connect_timeout: timeout.connect
-      socket.read_timeout = timeout.read
-      socket.write_timeout = timeout.write
-
-      begin
-        tls_socket = OpenSSL::SSL::Socket::Client.new socket, context: context, sync_close: true, hostname: tls.try &.hostname
-        tls_socket.sync = true
-      rescue ex
-        socket.close rescue nil
-        context.skip_finalize = true
-        context.free
-
-        raise ex
-      end
-
-      Tuple.new context, tls_socket
-    end
-  end
+abstract struct DNS::Address
+  abstract def ipAddress : Socket::IPAddress
+  abstract def timeout : TimeOut
+  abstract def protocolType : DNS::ProtocolType
+  abstract def create_socket!
 
   struct TransportLayerSecurity
     enum VerifyMode : UInt8
@@ -69,3 +29,5 @@ struct DNS::Address
     end
   end
 end
+
+require "./address/*"
