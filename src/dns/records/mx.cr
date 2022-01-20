@@ -3,6 +3,8 @@ struct DNS::Records
     property name : String
     property classType : Packet::ClassFlag
     property ttl : Time::Span
+    property mailExchange : String
+    property preference : UInt16
 
     def initialize(@name : String, @classType : Packet::ClassFlag, @ttl : Time::Span, @mailExchange : String, @preference : UInt16)
     end
