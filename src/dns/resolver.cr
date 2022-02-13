@@ -327,7 +327,7 @@ class DNS::Resolver
 
             socket.close rescue nil
             next unless reply
-            concurrent_mutex.synchronize { reply_packets << reply }
+            reply_mutex.synchronize { reply_packets << reply }
           when TCPSocket, OpenSSL::SSL::Socket::Client
             if socket.is_a? OpenSSL::SSL::Socket::Client
               tls_context.try &.skip_finalize = true
@@ -369,7 +369,7 @@ class DNS::Resolver
     loop do
       all_dead = concurrent_mutex.synchronize { concurrent_fibers.all? { |fiber| fiber.dead? } }
       next sleep 0.25_f32.seconds unless all_dead
-      break concurrent_mutex.synchronize { reply_packets.to_a }
+      break reply_mutex.synchronize { reply_packets.to_a }
     end
   end
 
