@@ -11,12 +11,12 @@ abstract struct DNS::Address
       @protocolType = DNS::ProtocolType::HTTP
     end
 
-    def create_socket! : Tuple(Nil, TCPSocket)
+    def create_socket! : TCPSocket
       socket = TCPSocket.new ip_address: ipAddress, connect_timeout: timeout.connect
       socket.read_timeout = timeout.read
       socket.write_timeout = timeout.write
 
-      Tuple.new nil, socket
+      socket
     end
   end
 end

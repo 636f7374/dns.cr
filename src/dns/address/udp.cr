@@ -8,13 +8,13 @@ abstract struct DNS::Address
       @protocolType = DNS::ProtocolType::UDP
     end
 
-    def create_socket! : Tuple(OpenSSL::SSL::Context::Client?, UDPSocket)
+    def create_socket! : UDPSocket
       socket = UDPSocket.new family: ipAddress.family
       socket.read_timeout = timeout.read
       socket.write_timeout = timeout.write
       socket.connect ip_address: ipAddress, connect_timeout: timeout.connect
 
-      Tuple.new nil, socket
+      socket
     end
   end
 end

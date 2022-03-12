@@ -304,10 +304,9 @@ class DNS::Resolver
     main_concurrent_fiber = spawn do
       dns_servers.each do |dns_server|
         concurrent_fiber = spawn do
-          tuple_context_socket = dns_server.create_socket! rescue nil
-          next unless tuple_context_socket
+          socket = dns_server.create_socket! rescue nil
+          next unless socket
 
-          tls_context, socket = tuple_context_socket
           dup_ask_packet = ask_packet.dup
           dup_ask_packet.transmissionId = Random.new.rand UInt16
 
@@ -326,14 +325,8 @@ class DNS::Resolver
             end
 
             socket.close rescue nil
-            next unless reply
-            reply_mutex.synchronize { reply_packets << reply }
+            reply.try { |_reply| reply_mutex.synchronize { reply_packets << _reply } }
           when TCPSocket, OpenSSL::SSL::Socket::Client
-            if socket.is_a? OpenSSL::SSL::Socket::Client
-              tls_context.try &.skip_finalize = true
-              socket.skip_finalize = true
-            end
-
             case socket
             in TCPSocket
               reply = resolve! dns_server: dns_server, socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
@@ -344,18 +337,8 @@ class DNS::Resolver
             end
 
             socket.close rescue nil
-
-            if socket.is_a? OpenSSL::SSL::Socket::Client
-              tls_context.try &.free
-              socket.free
-            end
-
-            next unless reply
-            reply_mutex.synchronize { reply_packets << reply }
+            reply.try { |_reply| reply_mutex.synchronize { reply_packets << _reply } }
           else
-            tls_context.try &.skip_finalize = true
-            tls_context.try &.free
-
             socket.close rescue nil
           end
         end
@@ -377,10 +360,9 @@ class DNS::Resolver
     reply_packets = Set(Packet).new
 
     dns_servers.each do |dns_server|
-      tuple_context_socket = dns_server.create_socket! rescue nil
-      next unless tuple_context_socket
+      socket = dns_server.create_socket! rescue nil
+      next unless socket
 
-      tls_context, socket = tuple_context_socket
       dup_ask_packet = ask_packet.dup
       dup_ask_packet.transmissionId = Random.new.rand UInt16
 
@@ -399,14 +381,8 @@ class DNS::Resolver
         end
 
         socket.close rescue nil
-        next unless reply
-        reply_packets << reply
+        reply.try { |_reply| reply_packets << _reply }
       when TCPSocket, OpenSSL::SSL::Socket::Client
-        if socket.is_a? OpenSSL::SSL::Socket::Client
-          tls_context.try &.skip_finalize = true
-          socket.skip_finalize = true
-        end
-
         case socket
         in TCPSocket
           reply = resolve! dns_server: dns_server, socket: socket, ask_packet: dup_ask_packet, protocol_type: dns_server.protocolType rescue nil
@@ -417,18 +393,8 @@ class DNS::Resolver
         end
 
         socket.close rescue nil
-
-        if socket.is_a? OpenSSL::SSL::Socket::Client
-          tls_context.try &.free
-          socket.free
-        end
-
-        next unless reply
-        reply_packets << reply
+        reply.try { |_reply| reply_packets << _reply }
       else
-        tls_context.try &.skip_finalize = true
-        tls_context.try &.free
-
         socket.close rescue nil
       end
     end
