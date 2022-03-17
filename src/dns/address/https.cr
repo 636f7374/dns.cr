@@ -21,6 +21,7 @@ abstract struct DNS::Address
 
       begin
         tls_socket = OpenSSL::SSL::Socket::Client.new socket, context: tls_context, sync_close: true, hostname: tls.try &.hostname
+        tls_socket.close_after_finalize = true
         tls_socket.read_buffering = false
         tls_socket.ssl_context = tls_context
         tls_socket.sync = true

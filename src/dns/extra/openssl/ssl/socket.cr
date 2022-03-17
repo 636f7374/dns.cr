@@ -1,8 +1,10 @@
 class OpenSSL::SSL::Socket
+  getter closeAfterFinalize : Bool
   getter freed : Bool
   getter freeMutex : Mutex
 
   protected def initialize(io, context : Context, @sync_close : Bool = false)
+    @closeAfterFinalize = false
     @freed = false
     @freeMutex = Mutex.new :unchecked
 
@@ -29,12 +31,20 @@ class OpenSSL::SSL::Socket
     @sslContext = value
   end
 
-  def ssl_context : Context?
+  def ssl_context? : Context?
     @sslContext
   end
 
+  def close_after_finalize=(value : Bool)
+    @closeAfterFinalize = value
+  end
+
+  def close_after_finalize? : Bool
+    @closeAfterFinalize
+  end
+
   private def free_ssl_context : Bool
-    ssl_context.try &.free
+    ssl_context?.try &.free
     @sslContext = nil
 
     true
@@ -97,10 +107,13 @@ class OpenSSL::SSL::Socket
         exception = ex
       end
 
-      LibSSL.ssl_free @ssl
-      free_ssl_context
+      if close_after_finalize?
+        LibSSL.ssl_free @ssl
+        free_ssl_context
 
-      @freed = true
+        @freed = true
+      end
+
       exception.try { |_exception| raise _exception }
     end
   end
