@@ -35,6 +35,7 @@ class TCPSocket < IPSocket
 
     ip_addresses.each_with_index do |ip_address, index|
       break if connect_timeout_time_span <= (Time.local - starting_time)
+      ip_address = Socket::IPAddress.new address: ip_address.address, port: port if ip_address.port.zero?
 
       case ip_address.family
       when .inet?
