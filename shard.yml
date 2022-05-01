@@ -1,8 +1,9 @@
 name: dns
-version: 1.0.0
+version: 1.0.1
 
 authors:
   - 636f7374
+  - usiegj00
 
 crystal: ">= 1.0.0"
 license: BSDv3
