@@ -23,7 +23,8 @@ struct DNS::Records
       end
 
       if txt_length != (data_length_buffer.size - 1_i32)
-        raise Exception.new String.build { |io| io << "dataLength or TXTLength is incorrect, or Packet Error!" }
+        puts "Probably not an exception: txt_length=#{txt_length} but data_length_buffer=#{data_length_buffer.size-1_i32}"
+        # raise Exception.new String.build { |io| io << "dataLength or TXTLength is incorrect, or Packet Error!" }
       end
 
       new name: name, classType: class_type, ttl: ttl.seconds, txt: data_length_buffer.gets_to_end
