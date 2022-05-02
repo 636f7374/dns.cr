@@ -6,18 +6,6 @@ struct DNS::Records
     property txt : String
 
     def initialize(@name : String, @classType : Packet::ClassFlag, @ttl : Time::Span, @txt : String)
-      size = @txt.size
-      if size > 255
-        # Here, @txt includes an invalid character on the 255th byte (due to multiple packet concatenation--see below--so we manually remove.
-        # Apologies on the code--rather iterate on groups of 256 bytes, dropping the last one, but didn't see how to crystal-lang that.
-        buf = ""
-        i = 0
-        while i < size
-          buf += @txt[i..i+254]
-          i += 256
-        end
-        @txt = buf
-      end
     end
 
     def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : TXT
@@ -29,17 +17,17 @@ struct DNS::Records
       data_length_buffer = read_data_length_buffer! io: io, buffer: buffer, length: data_length
 
       begin
-        txt_length = data_length_buffer.read_byte
+        txt : String = ""
+        # First byte of the buffer is the size of the payload.
+        while data_length_buffer.size != 0 && !(txt_length = data_length_buffer.read_byte).nil?
+          txt += data_length_buffer.read_string(txt_length)
+        end
       rescue ex
         raise Exception.new String.build { |io| io << "TXT.from_io: Failed to read txt_length from IO, Because: (" << ex.message << ")." }
       end
 
-      if txt_length != (data_length_buffer.size - 1_i32)
-        puts "Probably not an exception: txt_length=#{txt_length} but data_length_buffer=#{data_length_buffer.size-1_i32}"
-        # raise Exception.new String.build { |io| io << "dataLength or TXTLength is incorrect, or Packet Error!" }
-      end
 
-      new name: name, classType: class_type, ttl: ttl.seconds, txt: data_length_buffer.gets_to_end
+      new name: name, classType: class_type, ttl: ttl.seconds, txt: txt
     end
 
     private def self.read_data_length_buffer!(io : IO, buffer : IO, length : UInt16) : IO::Memory
