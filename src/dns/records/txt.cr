@@ -6,6 +6,18 @@ struct DNS::Records
     property txt : String
 
     def initialize(@name : String, @classType : Packet::ClassFlag, @ttl : Time::Span, @txt : String)
+      size = @txt.size
+      if size > 255
+        # Here, @txt includes an invalid character on the 255th byte (due to multiple packet concatenation--see below--so we manually remove.
+        # Apologies on the code--rather iterate on groups of 256 bytes, dropping the last one, but didn't see how to crystal-lang that.
+        buf = ""
+        i = 0
+        while i < size
+          buf += @txt[i..i+254]
+          i += 256
+        end
+        @txt = buf
+      end
     end
 
     def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : TXT
