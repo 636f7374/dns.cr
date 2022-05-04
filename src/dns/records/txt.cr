@@ -11,22 +11,28 @@ struct DNS::Records
     def self.from_io(name : String, protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : TXT
       class_type = read_class_type! io: io
       ttl = read_ttl! io: io, buffer: buffer
-      data_length = read_data_length! io: io
-
+      data_length_remaining = data_length = read_data_length! io: io
       set_buffer! buffer: buffer, class_type: class_type, ttl: ttl, data_length: data_length
+
       data_length_buffer = read_data_length_buffer! io: io, buffer: buffer, length: data_length
+      data_buffer = IO::Memory.new
 
-      begin
+      until data_length_remaining.zero?
         txt_length = data_length_buffer.read_byte
-      rescue ex
-        raise Exception.new String.build { |io| io << "TXT.from_io: Failed to read txt_length from IO, Because: (" << ex.message << ")." }
+        raise Exception.new String.build { |io| io << "TXT.from_io: Failed to read txt_length from IO." } unless txt_length
+        raise Exception.new String.build { |io| io << "TXT.from_io: txt_length is Zero." } if txt_length.zero?
+        data_length_remaining -= 1_u16
+
+        data_buffer_gets = data_length_buffer.gets txt_length
+        raise Exception.new String.build { |io| io << "TXT.from_io: Failed to read txt_length segment from IO." } unless data_buffer_gets
+
+        data_buffer << data_buffer_gets
+        data_length_remaining -= data_buffer_gets.size
       end
 
-      if txt_length != (data_length_buffer.size - 1_i32)
-        raise Exception.new String.build { |io| io << "dataLength or TXTLength is incorrect, or Packet Error!" }
-      end
+      data_buffer.rewind
 
-      new name: name, classType: class_type, ttl: ttl.seconds, txt: data_length_buffer.gets_to_end
+      new name: name, classType: class_type, ttl: ttl.seconds, txt: data_buffer.gets_to_end
     end
 
     private def self.read_data_length_buffer!(io : IO, buffer : IO, length : UInt16) : IO::Memory

@@ -1,17 +1,13 @@
 module DNS::Caching
   class IPAddress
     getter capacity : Int32
-    getter clearInterval : Time::Span
-    getter numberOfEntriesCleared : Int32
     getter answerStrictlySafe : Bool
     getter answerStrictlyIpv6 : Bool
     getter entries : Hash(String, Entry)
-    getter lastCleanedUp : Time
     getter mutex : Mutex
 
-    def initialize(@capacity : Int32 = 512_i32, @clearInterval : Time::Span = 3600_i32.seconds, @numberOfEntriesCleared : Int32 = ((capacity / 2_i32).to_i32 rescue 1_i32), @answerStrictlySafe : Bool = true, @answerStrictlyIpv6 : Bool = true)
+    def initialize(@capacity : Int32 = 512_i32, @answerStrictlySafe : Bool = true, @answerStrictlyIpv6 : Bool = true)
       @entries = Hash(String, Entry).new
-      @lastCleanedUp = Time.local
       @mutex = Mutex.new :unchecked
     end
 
@@ -27,27 +23,10 @@ module DNS::Caching
       @mutex.synchronize { entries.clear }
     end
 
-    private def refresh_last_cleaned_up
-      @mutex.synchronize { @lastCleanedUp = Time.local }
-    end
-
-    private def need_cleared? : Bool
-      interval = Time.local - (@mutex.synchronize { lastCleanedUp.dup })
-      interval > clearInterval
-    end
-
     def get_raw?(host : String, port : Int32? = nil, answer_safety_first : Bool? = nil, filter_type : Options::Addrinfo::FilterFlag = Options::Addrinfo::FilterFlag::IPV4_ONLY) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))?
-      entry = @mutex.synchronize do
-        return unless _entry = entries[host]?.dup
+      return unless entry = @mutex.synchronize { entries[host]?.dup }
 
-        _entry.refresh_last_visit
-        _entry.add_visits
-        entries[host] = _entry
-
-        _entry
-      end
-
-      port = nil if port.zero? if port
+      port = nil if port.try &.zero?
       ip_addresses = entry.get_sort_ipaddresses answer_safety_first: answer_safety_first, filter_type: filter_type, port: port
       include_secure = false
       secure_time_to_live_end = true
@@ -95,78 +74,19 @@ module DNS::Caching
       entry = Entry.new ipv4Addresses: ipv4_addresses, ipv6Addresses: ipv6_addresses
       return entry if ipv4_addresses.empty? && ipv6_addresses.empty?
 
-      inactive_entry_cleanup
+      @mutex.synchronize { entries.shift } if full?
       @mutex.synchronize { entries[host] = entry }
 
       entry
     end
 
-    private def inactive_entry_cleanup
-      case {full?, need_cleared?}
-      when {true, false}
-        clear_by_visits
-        refresh_last_cleaned_up
-      when {true, true}
-        clear_by_last_visit
-        refresh_last_cleaned_up
-      end
-    end
-
-    {% for clear_type in ["last_visit", "visits"] %}
-    private def clear_by_{{clear_type.id}}
-      {% if clear_type.id == "last_visit" %}
-        list = [] of Tuple(Time, String)
-      {% elsif clear_type.id == "visits" %}
-        list = [] of Tuple(Int64, String)
-      {% end %}
-
-      @mutex.synchronize do
-        maximum_cleared = numberOfEntriesCleared - 1_i32
-        maximum_cleared = 1_i32 if 1_i32 > maximum_cleared
-
-        entries.each do |host, entry|
-         {% if clear_type.id == "last_visit" %}
-            list << Tuple.new entry.lastVisit, host
-         {% elsif clear_type.id == "visits" %}
-            list << Tuple.new entry.visits.get, host
-         {% end %}
-        end
-
-        sorted_list = list.sort { |x, y| x.first <=> y.first }
-        sorted_list.each_with_index do |tuple, index|
-          break if index > maximum_cleared
-
-          {% if clear_type.id == "last_visit" %}
-            last_visit, host = tuple
-          {% elsif clear_type.id == "visits" %}
-            visits, host = tuple
-          {% end %}
-
-          entries.delete host
-        end
-      end
-    end
-    {% end %}
-
     struct Entry
       property ipv4Addresses : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
       property ipv6Addresses : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress))
-      property lastVisit : Time
-      property createdAt : Time
-      property visits : Atomic(Int64)
+      getter createdAt : Time
 
       def initialize(@ipv4Addresses : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)), @ipv6Addresses : Set(Tuple(ProtocolType, Time::Span, Socket::IPAddress)))
-        @lastVisit = Time.local
         @createdAt = Time.local
-        @visits = Atomic(Int64).new 0_i64
-      end
-
-      def add_visits
-        @visits.add 1_i64
-      end
-
-      def refresh_last_visit
-        @lastVisit = Time.local
       end
 
       def get_sort_ipaddresses(answer_safety_first : Bool?, filter_type : Options::Addrinfo::FilterFlag, port : Int32? = nil) : Array(Tuple(ProtocolType, Time::Span, Socket::IPAddress))

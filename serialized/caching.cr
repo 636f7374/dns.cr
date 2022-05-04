@@ -15,8 +15,6 @@ module DNS::Serialized
       include YAML::Serializable
 
       property capacity : Int32
-      property clearInterval : Int32
-      property numberOfEntriesCleared : Int32
 
       {% if type == "ip_address" || type == "packet" || type == "ip_mapper" %}
         property answerStrictlySafe : Bool
@@ -27,23 +25,23 @@ module DNS::Serialized
       {% end %}
 
       {% if type == "service_mapper" %}
-        def initialize(@capacity : Int32 = 512_i32, @clearInterval : Int32 = 3600_i32, @numberOfEntriesCleared : Int32 = 256_i32)
+        def initialize(@capacity : Int32 = 512_i32)
         end
       {% elsif type == "packet" %}
-        def initialize(@capacity : Int32 = 512_i32, @clearInterval : Int32 = 3600_i32, @numberOfEntriesCleared : Int32 = 256_i32, @answerStrictlySafe : Bool = true)
+        def initialize(@capacity : Int32 = 512_i32, @answerStrictlySafe : Bool = true)
         end
       {% else %}
-        def initialize(@capacity : Int32 = 512_i32, @clearInterval : Int32 = 3600_i32, @numberOfEntriesCleared : Int32 = 256_i32, @answerStrictlySafe : Bool = true, @answerStrictlyIpv6 : Bool = true)
+        def initialize(@capacity : Int32 = 512_i32, @answerStrictlySafe : Bool = true, @answerStrictlyIpv6 : Bool = true)
         end
       {% end %}
 
       def unwrap
         {% if type == "packet" %}
-          DNS::Caching::Packet.new capacity: capacity, clearInterval: clearInterval.seconds, numberOfEntriesCleared: numberOfEntriesCleared, answerStrictlySafe: answerStrictlySafe
+          DNS::Caching::Packet.new capacity: capacity, answerStrictlySafe: answerStrictlySafe
         {% elsif type == "service_mapper" %}
-          DNS::Caching::ServiceMapper.new capacity: capacity, clearInterval: clearInterval.seconds, numberOfEntriesCleared: numberOfEntriesCleared
+          DNS::Caching::ServiceMapper.new capacity: capacity
         {% else %}
-          DNS::Caching::IPAddress.new capacity: capacity, clearInterval: clearInterval.seconds, numberOfEntriesCleared: numberOfEntriesCleared, answerStrictlySafe: answerStrictlySafe, answerStrictlyIpv6: answerStrictlyIpv6
+          DNS::Caching::IPAddress.new capacity: capacity, answerStrictlySafe: answerStrictlySafe, answerStrictlyIpv6: answerStrictlyIpv6
         {% end %}
       end
     end
