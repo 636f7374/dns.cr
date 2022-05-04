@@ -104,6 +104,7 @@ $ make test
 |Name|Creator|Maintainer|Contributor|
 |:---:|:---:|:---:|:---:|
 |**[636f7374](https://github.com/636f7374)**|√|√|√|
+|**[usiegj00](https://github.com/usiegj00)**|||√|
 
 ## License
 
