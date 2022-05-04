@@ -13,7 +13,7 @@ main_concurrent_fibers = spawn do
     STDOUT.puts [reply]
   end
 
-  concurrent_mutex.synchronize { concurrent_fibers << fiber_case_1 }
+  concurrent_mutex.synchronize { concurrent_fibers << fiber_case_2 }
 end
 
 concurrent_mutex.synchronize { concurrent_fibers << main_concurrent_fibers }

@@ -42,14 +42,6 @@ abstract struct DNS::Records
       raise Exception.new String.build { |io| io << "Records.set_buffer!: Writing to the buffer failed, Because: (" << ex.message << ")." }
     end
   end
-
-  private def self.set_buffer!(data_length : UInt16)
-    begin
-      buffer.write_bytes data_length, IO::ByteFormat::BigEndian
-    rescue ex
-      raise Exception.new String.build { |io| io << "Records.set_buffer!: Writing to the buffer failed, Because: (" << ex.message << ")." }
-    end
-  end
 end
 
 require "./records/*"
