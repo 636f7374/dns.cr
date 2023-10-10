@@ -16,6 +16,14 @@ module DNS::Serialized
       "https" => HTTPS,
     }
 
+    def self.unwrap_ip_address(ip_address : String) : Socket::IPAddress?
+      address, delimiter, port = ip_address.rpartition ':'
+      return unless _port = port.to_i?
+      address = address.gsub /[\[\]]+/, nil
+
+      Socket::IPAddress.new address: address, port: _port rescue nil
+    end
+
     struct TransportLayerSecurity
       include YAML::Serializable
 

@@ -20,7 +20,7 @@ module DNS::Sections
 
     private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : String
       begin
-        Compress.decode_by_pointer! protocol_type: protocol_type, io: io, buffer: buffer, options: options, allow_empty: true
+        Compress.decode protocol_type: protocol_type, io: io, buffer: buffer
       rescue ex
         raise Exception.new String.build { |io| io << {{section.capitalize.id.stringify}} << ".decode_name!: Compress.decode_by_pointer! failed, Because: (" << ex.message << ")." }
       end

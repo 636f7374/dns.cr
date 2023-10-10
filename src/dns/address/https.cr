@@ -20,8 +20,7 @@ abstract struct DNS::Address
       tls_context = tls.try &.unwrap || OpenSSL::SSL::Context::Client.new
 
       begin
-        tls_socket = OpenSSL::SSL::Socket::Client.new socket, context: tls_context, sync_close: true, hostname: tls.try &.hostname
-        tls_socket.close_after_finalize = true
+        tls_socket = OpenSSL::SSL::Socket::Client.new io: socket, context: tls_context, sync_close: true, hostname: tls.try &.hostname
         tls_socket.read_buffering = false
         tls_socket.ssl_context = tls_context
         tls_socket.sync = true

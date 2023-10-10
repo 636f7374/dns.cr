@@ -21,23 +21,22 @@ struct DNS::Records
 
     private def self.read_ipv6_address!(io : IO, buffer : IO, length : UInt16) : Socket::IPAddress
       raise Exception.new String.build { |io| io << "AAAA.read_ipv6_address!: Ipv6 address length cannot be greater than 16, or data packet error!" } if length != 16_u16
+      ipv6_buffer = uninitialized UInt8[16_i32]
 
       begin
-        temporary = IO::Memory.new length
-        copy_length = IO.copy io, temporary, length
-        temporary.rewind
+        io.read slice: ipv6_buffer.to_slice
       rescue ex
         raise Exception.new String.build { |io| io << "AAAA.read_ipv6_address!: Because: (" << ex.message << ")." }
       end
 
       begin
-        buffer.write temporary.to_slice
+        buffer.write slice: ipv6_buffer.to_slice
       rescue ex
         raise Exception.new String.build { |io| io << "AAAA.read_ipv6_address!: Writing to the buffer failed, Because: (" << ex.message << ")." }
       end
 
       begin
-        Socket::IPAddress.from_io io: temporary, family: Socket::Family::INET6
+        Socket::IPAddress.parse slice: ipv6_buffer.to_slice, family: Socket::Family::INET6
       rescue ex
         raise Exception.new String.build { |io| io << "AAAA.read_ipv6_address!: Because: (" << ex.message << ")." }
       end

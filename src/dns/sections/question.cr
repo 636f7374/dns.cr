@@ -17,7 +17,7 @@ module DNS::Sections
     end
 
     def to_io(io : IO) : IO
-      Compress.encode_chunk_string io: io, value: name
+      Compress.encode io: io, value: name
 
       io.write_bytes recordType.value, IO::ByteFormat::BigEndian
       io.write_bytes classType.value, IO::ByteFormat::BigEndian
@@ -27,7 +27,7 @@ module DNS::Sections
 
     private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : String
       begin
-        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, options: options
+        Compress.decode protocol_type: protocol_type, io: io, buffer: buffer
       rescue ex
         raise Exception.new String.build { |io| io << "Question.decode_name!: Compress.decode! failed, Because: (" << ex.message << ")." }
       end

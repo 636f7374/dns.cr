@@ -14,7 +14,7 @@ struct DNS::Records
       data_length = read_data_length! io: io
 
       set_buffer! buffer: buffer, class_type: class_type, ttl: ttl, data_length: data_length
-      domain_name = Compress.decode_by_length! protocol_type: protocol_type, io: io, length: data_length, buffer: buffer, options: options, maximum_length: maximum_length
+      domain_name = Compress.decode protocol_type: protocol_type, io: io, buffer: buffer
 
       new name: name, classType: class_type, ttl: ttl.seconds, domainName: domain_name
     end

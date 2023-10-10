@@ -338,6 +338,12 @@ class DNS::Resolver
 
             socket.close rescue nil
             reply.try { |_reply| reply_mutex.synchronize { reply_packets << _reply } }
+
+            case socket
+            when OpenSSL::SSL::Socket::Client
+              socket.free
+              socket.ssl_context.try &.free
+            end
           else
             socket.close rescue nil
           end
@@ -394,6 +400,12 @@ class DNS::Resolver
 
         socket.close rescue nil
         reply.try { |_reply| reply_packets << _reply }
+
+        case socket
+        when OpenSSL::SSL::Socket::Client
+          socket.free
+          socket.ssl_context.try &.free
+        end
       else
         socket.close rescue nil
       end
@@ -434,7 +446,7 @@ class DNS::Resolver
     end
 
     buffer = uninitialized UInt8[4096_i32]
-    read_length = socket.read buffer.to_slice
+    read_length = socket.read slice: buffer.to_slice
     raise Exception.new "Resolver.resolve!: DNS query failed, zero bytes have been read!" if read_length.zero?
 
     memory = IO::Memory.new buffer.to_slice[0_i32, read_length]

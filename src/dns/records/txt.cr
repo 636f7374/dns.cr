@@ -37,20 +37,19 @@ struct DNS::Records
 
     private def self.read_data_length_buffer!(io : IO, buffer : IO, length : UInt16) : IO::Memory
       begin
-        temporary = IO::Memory.new length
-        copy_length = IO.copy io, temporary, length
-        temporary.rewind
+        bytes = Bytes.new size: length
+        copy_length = io.read slice: bytes
       rescue ex
         raise Exception.new String.build { |io| io << "TXT.read_data_length_buffer!: Because: (" << ex.message << ")." }
       end
 
       begin
-        buffer.write temporary.to_slice
+        buffer.write slice: bytes[0_i32, copy_length]
       rescue ex
         raise Exception.new String.build { |io| io << "TXT.read_data_length_buffer!: Writing to the buffer failed, Because: (" << ex.message << ")." }
       end
 
-      temporary
+      IO::Memory.new bytes[0_i32, copy_length]
     end
   end
 end

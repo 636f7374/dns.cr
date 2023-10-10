@@ -34,11 +34,7 @@ module DNS::Serialized
       end
 
       def unwrap : DNS::Address?
-        address, delimiter, port = ipAddress.rpartition ':'
-        return unless _port = port.to_i?
-        ip_address = Socket::IPAddress.new address: address, port: _port rescue nil
-        return unless ip_address
-
+        return unless ip_address = Address.unwrap_ip_address ip_address: ipAddress
         DNS::Address::HTTP.new ipAddress: ip_address, timeout: timeout.unwrap, method: method, resource: unwrap_uri_resource, headers: unwrap_headers
       end
     end

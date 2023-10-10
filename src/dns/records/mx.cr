@@ -41,7 +41,7 @@ struct DNS::Records
 
     private def self.decode_name!(protocol_type : ProtocolType, io : IO, buffer : IO::Memory, options : Options = Options.new) : String
       begin
-        Compress.decode! protocol_type: protocol_type, io: io, buffer: buffer, options: options
+        Compress.decode protocol_type: protocol_type, io: io, buffer: buffer
       rescue ex
         raise Exception.new String.build { |io| io << "MX.decode_name!: Compress.decode! failed, Because: (" << ex.message << ")." }
       end

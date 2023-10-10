@@ -1,120 +1,118 @@
 class OpenSSL::SSL::Socket
-  getter closeAfterFinalize : Bool
-  getter freed : Bool
-  getter freeMutex : Mutex
-
-  protected def initialize(io, context : Context, @sync_close : Bool = false)
-    @closeAfterFinalize = false
-    @freed = false
-    @freeMutex = Mutex.new :unchecked
-
-    @closed = false
-
-    @ssl = LibSSL.ssl_new context
-    unless @ssl
-      raise OpenSSL::Error.new "SSL_new"
-    end
-
-    # Since OpenSSL::SSL::Socket is buffered it makes no
-    # sense to wrap a IO::Buffered with buffering activated.
-
-    if io.is_a? IO::Buffered
-      io.sync = true
-      io.read_buffering = false
-    end
-
-    @bio = BIO.new io
-    LibSSL.ssl_set_bio @ssl, @bio, @bio
-  end
+  getter freed : Bool = false
 
   def ssl_context=(value : Context)
     @sslContext = value
   end
 
-  def ssl_context? : Context?
+  def ssl_context : Context?
     @sslContext
   end
 
-  def close_after_finalize=(value : Bool)
-    @closeAfterFinalize = value
-  end
-
-  def close_after_finalize? : Bool
-    @closeAfterFinalize
-  end
-
-  private def free_ssl_context : Bool
-    ssl_context?.try &.free
-    @sslContext = nil
-
-    true
-  end
-
   def finalize
-    @freeMutex.synchronize do
-      return if @freed
+    free
+  end
 
-      LibSSL.ssl_free @ssl
-      free_ssl_context
+  def free
+    return if @freed
+    @freed = true
 
-      @freed = true
+    LibSSL.ssl_free @ssl
+  end
+end
+
+class OpenSSL::SSL::SuperSocket < IO
+  getter socket : OpenSSL::SSL::Socket
+  getter sslContext : Context?
+  getter closeAfterFinalize : Bool
+  getter freed : Atomic(Int8)
+  getter readMutex : Mutex
+  getter writeMutex : Mutex
+  getter mutex : Mutex
+
+  def initialize(@socket : OpenSSL::SSL::Socket, @sslContext : Context?, @closeAfterFinalize : Bool)
+    @freed = Atomic(Int8).new value: -1_i8
+    @readMutex = Mutex.new :unchecked
+    @writeMutex = Mutex.new :unchecked
+    @mutex = Mutex.new :unchecked
+  end
+
+  def read_timeout=(value : Int | Time::Span | Nil)
+    _socket = @socket
+    _socket.read_timeout = value if _socket.responds_to? :read_timeout=
+  end
+
+  def read_timeout
+    @socket.read_timeout
+  end
+
+  def write_timeout=(value : Int | Time::Span | Nil)
+    _socket = @socket
+    _socket.write_timeout = value if _socket.responds_to? :write_timeout=
+  end
+
+  def write_timeout
+    @socket.write_timeout
+  end
+
+  def sync=(value : Bool)
+    _socket = @socket
+    _socket.sync = value if _socket.responds_to? :sync=
+  end
+
+  def read_buffering=(value : Bool)
+    _socket = @socket
+    _socket.read_buffering = value if _socket.responds_to? :read_buffering=
+  end
+
+  def local_address
+    @socket.local_address
+  end
+
+  def remote_address
+    @socket.remote_address
+  end
+
+  def read(slice : Bytes) : Int32
+    @readMutex.synchronize do
+      raise Exception.new "OpenSSL::SSL::SuperSocket.read: socket, sslContext freed!" if @freed.get.zero?
+      return @socket.read slice: slice
     end
   end
 
-  private def __unbuffered_close : Nil
-    begin
-      loop do
-        begin
-          ret = LibSSL.ssl_shutdown @ssl
-          break if ret == 1                # done bidirectional
-          break if ret == 0 && sync_close? # done unidirectional, "this first successful call to SSL_shutdown() is sufficient"
-          raise OpenSSL::SSL::Error.new(@ssl, ret, "SSL_shutdown") if ret < 0
-        rescue e : OpenSSL::SSL::Error
-          case e.error
-          when .want_read?, .want_write?
-            # Ignore, shutdown did not complete yet
-          when .syscall?
-            # OpenSSL claimed an underlying syscall failed, but that didn't set any error state,
-            # assume we're done
-
-            break
-          else
-            raise e
-          end
-        end
-
-        # ret == 0, retry, shutdown is not complete yet
-      end
-    rescue IO::Error
-    ensure
-      @bio.io.close if @sync_close
+  def write(slice : Bytes) : Nil
+    @writeMutex.synchronize do
+      raise Exception.new "OpenSSL::SSL::SuperSocket.write: socket, sslContext freed!" if @freed.get.zero?
+      return @socket.write slice: slice
     end
   end
 
-  def close : Nil
-    unbuffered_close
-  end
+  def close : Bool
+    exception = nil
 
-  def unbuffered_close : Nil
-    @freeMutex.synchronize do
-      return if @freed && @closed
-      @closed = true
-      exception = nil
+    @mutex.synchronize do
+      return true if @freed.get.zero?
 
       begin
-        __unbuffered_close
+        @socket.close
       rescue ex
         exception = ex
       end
 
-      if close_after_finalize?
-        LibSSL.ssl_free @ssl
-        free_ssl_context
+      @freed.set value: 0_i8
+      readMutex.lock
+      writeMutex.lock
 
-        @freed = true
+      if @closeAfterFinalize
+        @socket.free
+        @sslContext.try &.free
       end
 
-      exception.try { |_exception| raise _exception }
+      readMutex.unlock
+      writeMutex.unlock
     end
+
+    exception.try { |_exception| raise _exception }
+    true
   end
 end
