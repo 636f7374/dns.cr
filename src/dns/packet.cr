@@ -198,7 +198,12 @@ struct DNS::Packet
     true
   end
 
+  @[Deprecated]
   def self.create_getaddrinfo_ask(protocol_type : ProtocolType, name : String, record_type : RecordFlag, class_type : ClassFlag = ClassFlag::Internet)
+    create_query_packet protocol_type: protocol_type, name: name, record_type: record_type, class_type: class_type
+  end
+
+  def self.create_query_packet(protocol_type : ProtocolType, name : String, record_type : RecordFlag, class_type : ClassFlag = ClassFlag::Internet)
     packet = new arType: ARType::Ask, protocolType: protocol_type
 
     {% begin %}

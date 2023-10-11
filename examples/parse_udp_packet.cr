@@ -1,7 +1,7 @@
 require "../src/dns.cr"
 
 buffer = uninitialized UInt8[4096_i32]
-ask_packet = DNS::Packet.create_getaddrinfo_ask protocol_type: DNS::ProtocolType::UDP, name: "8.8.8.8.in-addr.arpa", record_type: DNS::Packet::RecordFlag::PTR, class_type: DNS::Packet::ClassFlag::Internet
+ask_packet = DNS::Packet.create_query_packet protocol_type: DNS::ProtocolType::UDP, name: "8.8.8.8.in-addr.arpa", record_type: DNS::Packet::RecordFlag::PTR, class_type: DNS::Packet::ClassFlag::Internet
 ask_packet.transmissionId = Random.new.rand UInt16
 
 udp_socket = UDPSocket.new

@@ -18,7 +18,7 @@ reply_packets = Set(Tuple(String, Time::Span, Tuple(DNS::FetchType, Array(DNS::P
 main_concurrent_fibers = spawn do
   google_query_fiber = spawn do
     before = Time.local
-    ask_packet = DNS::Packet.create_getaddrinfo_ask protocol_type: DNS::ProtocolType::UDP, name: "8.8.8.8.in-addr.arpa", record_type: DNS::Packet::RecordFlag::PTR, class_type: DNS::Packet::ClassFlag::Internet
+    ask_packet = DNS::Packet.create_query_packet protocol_type: DNS::ProtocolType::UDP, name: "8.8.8.8.in-addr.arpa", record_type: DNS::Packet::RecordFlag::PTR, class_type: DNS::Packet::ClassFlag::Internet
     packets = dns_resolver.resolve host: "8.8.8.8.in-addr.arpa", record_type: DNS::Packet::RecordFlag::PTR, ask_packet: ask_packet
     after = Time.local
     reply_mutex.synchronize { reply_packets << Tuple.new "8.8.8.8.in-addr.arpa", (after - before), packets }
@@ -28,7 +28,7 @@ main_concurrent_fibers = spawn do
 
   cloudflare_query_fiber = spawn do
     before = Time.local
-    ask_packet = DNS::Packet.create_getaddrinfo_ask protocol_type: DNS::ProtocolType::UDP, name: "cloudflare.com", record_type: DNS::Packet::RecordFlag::SOA, class_type: DNS::Packet::ClassFlag::Internet
+    ask_packet = DNS::Packet.create_query_packet protocol_type: DNS::ProtocolType::UDP, name: "cloudflare.com", record_type: DNS::Packet::RecordFlag::SOA, class_type: DNS::Packet::ClassFlag::Internet
     packets = dns_resolver.resolve host: "cloudflare.com", record_type: DNS::Packet::RecordFlag::SOA, ask_packet: ask_packet
     after = Time.local
     reply_mutex.synchronize { reply_packets << Tuple.new "cloudflare.com", (after - before), packets }
@@ -38,7 +38,7 @@ main_concurrent_fibers = spawn do
 
   spotify_query_fiber = spawn do
     before = Time.local
-    ask_packet = DNS::Packet.create_getaddrinfo_ask protocol_type: DNS::ProtocolType::UDP, name: "spotify.com", record_type: DNS::Packet::RecordFlag::CNAME, class_type: DNS::Packet::ClassFlag::Internet
+    ask_packet = DNS::Packet.create_query_packet protocol_type: DNS::ProtocolType::UDP, name: "spotify.com", record_type: DNS::Packet::RecordFlag::CNAME, class_type: DNS::Packet::ClassFlag::Internet
     packets = dns_resolver.resolve host: "spotify.com", record_type: DNS::Packet::RecordFlag::CNAME, ask_packet: ask_packet
     after = Time.local
     reply_mutex.synchronize { reply_packets << Tuple.new "spotify.com", (after - before), packets }
@@ -48,7 +48,7 @@ main_concurrent_fibers = spawn do
 
   github_query_fiber = spawn do
     before = Time.local
-    ask_packet = DNS::Packet.create_getaddrinfo_ask protocol_type: DNS::ProtocolType::UDP, name: "github.com", record_type: DNS::Packet::RecordFlag::MX, class_type: DNS::Packet::ClassFlag::Internet
+    ask_packet = DNS::Packet.create_query_packet protocol_type: DNS::ProtocolType::UDP, name: "github.com", record_type: DNS::Packet::RecordFlag::MX, class_type: DNS::Packet::ClassFlag::Internet
     packets = dns_resolver.resolve host: "github.com", record_type: DNS::Packet::RecordFlag::MX, ask_packet: ask_packet
     after = Time.local
     reply_mutex.synchronize { reply_packets << Tuple.new "github.com", (after - before), packets }
@@ -58,7 +58,7 @@ main_concurrent_fibers = spawn do
 
   medium_query_fiber = spawn do
     before = Time.local
-    ask_packet = DNS::Packet.create_getaddrinfo_ask protocol_type: DNS::ProtocolType::UDP, name: "medium.com", record_type: DNS::Packet::RecordFlag::TXT, class_type: DNS::Packet::ClassFlag::Internet
+    ask_packet = DNS::Packet.create_query_packet protocol_type: DNS::ProtocolType::UDP, name: "medium.com", record_type: DNS::Packet::RecordFlag::TXT, class_type: DNS::Packet::ClassFlag::Internet
     packets = dns_resolver.resolve host: "medium.com", record_type: DNS::Packet::RecordFlag::TXT, ask_packet: ask_packet
     after = Time.local
     reply_mutex.synchronize { reply_packets << Tuple.new "medium.com", (after - before), packets }
@@ -68,7 +68,7 @@ main_concurrent_fibers = spawn do
 
   another_github_query_fiber = spawn do
     before = Time.local
-    ask_packet = DNS::Packet.create_getaddrinfo_ask protocol_type: DNS::ProtocolType::UDP, name: "github.com", record_type: DNS::Packet::RecordFlag::MX, class_type: DNS::Packet::ClassFlag::Internet
+    ask_packet = DNS::Packet.create_query_packet protocol_type: DNS::ProtocolType::UDP, name: "github.com", record_type: DNS::Packet::RecordFlag::MX, class_type: DNS::Packet::ClassFlag::Internet
     packets = dns_resolver.resolve host: "github.com", record_type: DNS::Packet::RecordFlag::MX, ask_packet: ask_packet
     after = Time.local
     reply_mutex.synchronize { reply_packets << Tuple.new "github.com", (after - before), packets }

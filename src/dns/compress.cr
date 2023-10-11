@@ -23,7 +23,8 @@ module DNS::Compress
         read_length = io.read slice: pointer_buffer.to_slice
         raise Exception.new "Compress.decode: (Pointer) Failed to read 1 Bytes from IO!" unless 1_i32 == read_length
         pointer_slice = pointer_buffer.to_slice
-        pointer_value = (((pointer_value - 0b11000000).to_u8 << 8_u8) | pointer_slice[0_u8]).to_u16
+        pointer_value = (((pointer_value & 0b00000011_u8).to_u16 << 8_u8) | pointer_slice[0_u8])
+        pointer_value += 2_i32 if protocol_type.tcp? || protocol_type.tls?
         buffer.write slice: pointer_slice
 
         before_buffer_position = buffer.pos
@@ -38,7 +39,8 @@ module DNS::Compress
           if pointer_value >= 0b11000000
             read_length = buffer.read_fully slice: pointer_buffer.to_slice
             pointer_slice = pointer_buffer.to_slice
-            pointer_value = (((pointer_value - 0b11000000).to_u8 << 8_u8) | pointer_slice[0_u8]).to_u16
+            pointer_value = (((pointer_value & 0b00000011_u8).to_u16 << 8_u8) | pointer_slice[0_u8])
+            pointer_value += 2_i32 if protocol_type.tcp? || protocol_type.tls?
 
             buffer.pos = pointer_value
           else

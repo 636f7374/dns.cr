@@ -61,7 +61,7 @@ class DNS::Resolver
     dns_servers = nil if dns_servers.try &.empty?
     dns_servers = dnsServers unless dns_servers
 
-    packets = getaddrinfo_query_ip_records dns_servers: dns_servers, host: host, class_type: Packet::ClassFlag::Internet
+    packets = query_ip_records dns_servers: dns_servers, host: host, class_type: Packet::ClassFlag::Internet
     ip_addresses = select_packet_answers_records_ip_addresses host: host, packets: packets, options: options
 
     caching_entry = ipAddressCaching.set host: host, ipv4_addresses: ip_addresses.first, ipv6_addresses: ip_addresses.last
@@ -201,12 +201,12 @@ class DNS::Resolver
     value.to_set
   end
 
-  private def getaddrinfo_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
-    return concurrent_getaddrinfo_query_ip_records dns_servers: dns_servers, host: host, class_type: class_type if options.addrinfo.concurrentQuery
-    regular_getaddrinfo_query_ip_records dns_servers: dns_servers, host: host, class_type: class_type
+  private def query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
+    return concurrent_query_ip_records dns_servers: dns_servers, host: host, class_type: class_type if options.addrinfo.concurrentQuery
+    regular_query_ip_records dns_servers: dns_servers, host: host, class_type: class_type
   end
 
-  private def concurrent_getaddrinfo_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
+  private def concurrent_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
     concurrent_mutex = Mutex.new :unchecked
     concurrent_fibers = Set(Fiber).new
     reply_mutex = Mutex.new :unchecked
@@ -216,28 +216,28 @@ class DNS::Resolver
       case options.addrinfo.queryType
       in .ipv4_only?
         ipv4_query_fiber = spawn do
-          ipv4_packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
+          ipv4_packets = query_a_records dns_servers: dns_servers, host: host, class_type: class_type
           reply_mutex.synchronize { reply_packets << ipv4_packets }
         end
 
         concurrent_mutex.synchronize { concurrent_fibers << ipv4_query_fiber }
       in .ipv6_only?
         ipv6_query_fiber = spawn do
-          ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
+          ipv6_packets = query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
           reply_mutex.synchronize { reply_packets << ipv6_packets }
         end
 
         concurrent_mutex.synchronize { concurrent_fibers << ipv6_query_fiber }
       in .both?
         ipv4_query_fiber = spawn do
-          ipv4_packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
+          ipv4_packets = query_a_records dns_servers: dns_servers, host: host, class_type: class_type
           reply_mutex.synchronize { reply_packets << ipv4_packets }
         end
 
         concurrent_mutex.synchronize { concurrent_fibers << ipv4_query_fiber }
 
         ipv6_query_fiber = spawn do
-          ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
+          ipv6_packets = query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
           reply_mutex.synchronize { reply_packets << ipv6_packets }
         end
 
@@ -254,16 +254,16 @@ class DNS::Resolver
     end
   end
 
-  private def regular_getaddrinfo_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
+  private def regular_query_ip_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
     case options.addrinfo.queryType
     in .ipv4_only?
-      getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
+      query_a_records dns_servers: dns_servers, host: host, class_type: class_type
     in .ipv6_only?
-      ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
+      ipv6_packets = query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
     in .both?
-      packets = getaddrinfo_query_a_records dns_servers: dns_servers, host: host, class_type: class_type
+      packets = query_a_records dns_servers: dns_servers, host: host, class_type: class_type
 
-      ipv6_packets = getaddrinfo_query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
+      ipv6_packets = query_aaaa_records dns_servers: dns_servers, host: host, class_type: class_type
       ipv6_packets.each { |packet| packets << packet }
 
       packets
@@ -271,26 +271,26 @@ class DNS::Resolver
   end
 
   {% for record_type in ["a", "aaaa"] %}
-  private def getaddrinfo_query_{{record_type.id}}_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
-    getaddrinfo_query! dns_servers: dns_servers, host: host, record_type: Packet::RecordFlag::{{record_type.upcase.id}}, class_type: class_type
+  private def query_{{record_type.id}}_records(dns_servers : Set(Address), host : String, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
+    resolve dns_servers: dns_servers, host: host, record_type: Packet::RecordFlag::{{record_type.upcase.id}}, class_type: class_type
   end
   {% end %}
 
-  private def getaddrinfo_query!(dns_servers : Set(Address), host : String, record_type : Packet::RecordFlag, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
-    ask_packet = Packet.create_getaddrinfo_ask protocol_type: ProtocolType::UDP, name: host, record_type: record_type, class_type: class_type
-    resolve! dns_servers: dns_servers, ask_packet: ask_packet
+  private def resolve(dns_servers : Set(Address), host : String, record_type : Packet::RecordFlag, class_type : Packet::ClassFlag = Packet::ClassFlag::Internet) : Array(Packet)
+    ask_packet = Packet.create_query_packet protocol_type: ProtocolType::UDP, name: host, record_type: record_type, class_type: class_type
+    resolve dns_servers: dns_servers, ask_packet: ask_packet
   end
 
   def resolve(host : String, record_type : Packet::RecordFlag, ask_packet : Packet) : Tuple(FetchType, Array(Packet))
     packetCaching.get?(host: host, record_type: record_type).try { |packets| return Tuple.new FetchType::Caching, packets }
 
-    packets = resolve! dns_servers: dnsServers, ask_packet: ask_packet
+    packets = resolve dns_servers: dnsServers, ask_packet: ask_packet
     packetCaching.set host: host, record_type: record_type, packets: packets
 
     Tuple.new FetchType::Remote, packets
   end
 
-  private def resolve!(dns_servers : Set(Address), ask_packet : Packet) : Array(Packet)
+  private def resolve(dns_servers : Set(Address), ask_packet : Packet) : Array(Packet)
     return concurrent_resolve dns_servers: dns_servers, ask_packet: ask_packet if options.addrinfo.concurrentQuery
     regular_resolve dns_servers: dns_servers, ask_packet: ask_packet
   end
