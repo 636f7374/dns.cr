@@ -82,7 +82,6 @@ module DNS::Serialized
         property maximumCountOfAuthority : UInt16
         property maximumCountOfAdditional : UInt16
         property maximumDepthOfCanonicalName : UInt8
-        property maximumSizeOfPerChunk : UInt16
         property maximumSizeOfPacket : UInt16
 
         def initialize
@@ -91,7 +90,6 @@ module DNS::Serialized
           @maximumCountOfAuthority = 128_u16
           @maximumCountOfAdditional = 128_u16
           @maximumDepthOfCanonicalName = 64_u8
-          @maximumSizeOfPerChunk = 2048_u16
           @maximumSizeOfPacket = 65535_u16
         end
 
@@ -103,7 +101,6 @@ module DNS::Serialized
           packet.maximumCountOfAuthority = maximumCountOfAuthority
           packet.maximumCountOfAdditional = maximumCountOfAdditional
           packet.maximumDepthOfCanonicalName = maximumDepthOfCanonicalName
-          packet.maximumSizeOfPerChunk = maximumSizeOfPerChunk
           packet.maximumSizeOfPacket = maximumSizeOfPacket
 
           packet

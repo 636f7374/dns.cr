@@ -96,7 +96,6 @@ options:
     maximumCountOfAuthority: 128
     maximumCountOfAdditional: 128
     maximumDepthOfCanonicalName: 64
-    maximumSizeOfPerChunk: 2048
     maximumSizeOfPacket: 65535
 caching:
   serviceMapper:

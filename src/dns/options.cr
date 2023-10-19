@@ -62,7 +62,6 @@ struct DNS::Options
     property maximumCountOfAuthority : UInt16
     property maximumCountOfAdditional : UInt16
     property maximumDepthOfCanonicalName : UInt8
-    property maximumSizeOfPerChunk : UInt16
     property maximumSizeOfPacket : UInt16
 
     def initialize
@@ -71,7 +70,6 @@ struct DNS::Options
       @maximumCountOfAuthority = 128_u16
       @maximumCountOfAdditional = 128_u16
       @maximumDepthOfCanonicalName = 64_u8
-      @maximumSizeOfPerChunk = 2048_u16
       @maximumSizeOfPacket = 65535_u16
     end
   end
