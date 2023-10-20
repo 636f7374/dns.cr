@@ -17,22 +17,19 @@ module DNS::Serialized
       struct Socket
         include YAML::Serializable
 
-        property maximumNumberOfRetriesForPerIpAddress : UInt8
-        property maximumNumberOfRetriesForIpv4ConnectionFailure : UInt8
-        property maximumNumberOfRetriesForIpv6ConnectionFailure : UInt8
+        property maximumIpv4Attempts : UInt8
+        property maximumIpv6Attempts : UInt8
 
         def initialize
-          @maximumNumberOfRetriesForPerIpAddress = 1_u8
-          @maximumNumberOfRetriesForIpv4ConnectionFailure = 2_u8
-          @maximumNumberOfRetriesForIpv6ConnectionFailure = 2_u8
+          @maximumIpv4Attempts = 2_u8
+          @maximumIpv6Attempts = 2_u8
         end
 
         def unwrap : DNS::Options::Socket
           socket = DNS::Options::Socket.new
 
-          socket.maximumNumberOfRetriesForPerIpAddress = maximumNumberOfRetriesForPerIpAddress
-          socket.maximumNumberOfRetriesForIpv4ConnectionFailure = maximumNumberOfRetriesForIpv4ConnectionFailure
-          socket.maximumNumberOfRetriesForIpv6ConnectionFailure = maximumNumberOfRetriesForIpv6ConnectionFailure
+          socket.maximumIpv4Attempts = maximumIpv4Attempts
+          socket.maximumIpv6Attempts = maximumIpv6Attempts
 
           socket
         end

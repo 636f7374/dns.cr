@@ -15,12 +15,12 @@ class DNS::Resolver
     @options
   end
 
-  def maximum_number_of_retries_for_ipv4_connection_failure(caller : Symbol?, delegator : Symbol) : UInt8
-    options.socket.maximumNumberOfRetriesForIpv4ConnectionFailure
+  def maximum_ipv4_attempts(caller : Symbol?, delegator : Symbol) : UInt8
+    options.socket.maximumIpv4Attempts
   end
 
-  def maximum_number_of_retries_for_ipv6_connection_failure(caller : Symbol?, delegator : Symbol) : UInt8
-    options.socket.maximumNumberOfRetriesForIpv6ConnectionFailure
+  def maximum_ipv6_attempts(caller : Symbol?, delegator : Symbol) : UInt8
+    options.socket.maximumIpv6Attempts
   end
 
   def getaddrinfo(host : String, port : Int32 = 0_i32, caller : Symbol? = nil, answer_safety_first : Bool? = options.addrinfo.answerSafetyFirst, addrinfo_overridable : Bool? = nil) : Tuple(Symbol, FetchType, Array(Socket::IPAddress))
